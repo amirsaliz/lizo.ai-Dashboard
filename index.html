@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lizo.ai · GTM Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --dark:#1E033E;--p1:#4A1A8C;--p2:#7B4FD4;--p3:#B99AF0;--lp:#D1B8FF;--vlp:#E8E2F5;
+  --teal:#00DCC7;--white:#fff;--gray:#6B7280;--lgray:#9CA3AF;
+  --border:rgba(74,26,140,0.12);--font:'Poppins','Segoe UI',sans-serif;
+  --green:#059669;--gbg:#ECFDF5;--red:#DC2626;--rbg:#FEF2F2;--amber:#D97706;--abg:#FFFBEB;
+  --card-bg:#F0EBFF;--card-key-bg:#E8DEFF;--card-edge:#C5B0F0;--card-key-edge:#A98EDF;
+  --t-section:16px;--t-sublbl:10px;--t-kpi-lbl:11px;--t-def:9px;
+  --t-num-xl:52px;--t-num-lg:36px;--t-num-md:22px;--t-num-sm:14px;
+  --t-body:11px;--t-badge:10px;--t-micro:9px;
+}
+html,body{height:100%;font-family:var(--font);background:#1E033E;overflow:hidden}
+
+/* ── TAB BAR ── */
+.tabbar{display:flex;align-items:center;gap:10px;padding:10px 18px;background:#1E033E;border-bottom:1px solid rgba(209,184,255,.15)}
+.tabbar-label{font-size:9px;font-weight:700;color:rgba(209,184,255,.5);text-transform:uppercase;letter-spacing:1px;margin-left:10px}
+.tab-btn{background:rgba(255,255,255,.07);color:#D1B8FF;border:1px solid rgba(255,255,255,.08);padding:7px 18px;border-radius:20px;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:600;transition:all .15s}
+.tab-btn.active,.tab-btn:hover{background:#4A1A8C;color:#fff;border-color:#7B4FD4}
+.frame-wrap{position:relative;width:100%;height:calc(100vh - 44px)}
+iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;display:none}
+iframe.active{display:block}
+
+/* ── LOADING OVERLAY ── */
+#loader{position:fixed;inset:0;background:#1E033E;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:999}
+.loader-logo{font-size:28px;font-weight:800;color:#fff}.loader-logo span{color:#00DCC7}
+.loader-msg{font-size:13px;color:rgba(209,184,255,.7)}
+.spinner{width:32px;height:32px;border:3px solid rgba(209,184,255,.2);border-top-color:#7B4FD4;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-ts{font-size:10px;color:rgba(209,184,255,.4);margin-top:8px}
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div class="loader-logo">lizo<span>.ai</span></div>
+  <div class="spinner"></div>
+  <div class="loader-msg" id="loader-msg">Fetching live data from Sheets…</div>
+  <div class="loader-ts" id="loader-ts"></div>
+</div>
+
+<div class="tabbar" style="display:none" id="tabbar">
+  <span class="tabbar-label">Sheet</span>
+  <button class="tab-btn active" data-target="frame-weekly">Weekly</button>
+  <button class="tab-btn" data-target="frame-monthly">Monthly Summary</button>
+  <button class="tab-btn" data-target="frame-quarterly">Quarterly Summary</button>
+</div>
+<div class="frame-wrap">
+  <iframe id="frame-weekly" class="active"></iframe>
+  <iframe id="frame-monthly"></iframe>
+  <iframe id="frame-quarterly"></iframe>
+</div>
+
+<script>
+// ── CONFIG ─────────────────────────────────────────
+var API_URL = 'https://script.google.com/macros/s/AKfycbwz8Y6yQZqUW-QA4vOQ2T6sJ5Np9XF5G4Rm3fT9SBAzy520WN0btJOYmEdGjVIwZl5z/exec';
+
+// ── HELPERS ────────────────────────────────────────
+function safe(v, fallback) {
+  if (v === undefined || v === null || v === '' || v === '-') return fallback !== undefined ? fallback : 0;
+  if (typeof v === 'string') {
+    var n = parseFloat(v.replace(/[^0-9.\-]/g, ''));
+    return isNaN(n) ? (fallback !== undefined ? fallback : 0) : n;
+  }
+  return typeof v === 'number' ? v : fallback !== undefined ? fallback : 0;
+}
+function pct(v) {
+  if (v === undefined || v === null || v === '' || v === '-') return 0;
+  if (typeof v === 'string' && v.indexOf('%') > -1) return parseFloat(v);
+  var n = parseFloat(v);
+  if (isNaN(n)) return 0;
+  return n < 1 ? Math.round(n * 100) : Math.round(n);
+}
+function money(v) {
+  var n = safe(v);
+  if (n >= 1000000) return '$' + (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000) return '$' + Math.round(n/1000) + 'K';
+  return '$' + n;
+}
+
+// ── WEEKLY DASHBOARD BUILDER ───────────────────────
+function buildWeekly(d) {
+  var wl = d.weeklyLog || {};
+  var st = d.stages || {};
+  var mo = d.monthly || {};
+
+  // Stage active counts
+  var s_neg2_active = safe(st.s_neg2 && st.s_neg2.active, 0);
+  var s_neg1_active = safe(st.s_neg1 && st.s_neg1.active, 0);
+  var s0_active     = safe(st.s0 && st.s0.active, 0);
+  var s1_active     = safe(st.s1 && st.s1.active, 0);
+  var s2_active     = safe(st.s2 && st.s2.active, 0);
+  var s3_active     = safe(st.s3 && st.s3.active, 0);
+  var s4_active     = safe(st.s4 && st.s4.active, 0);
+
+  // Conversions
+  var s_neg1_conv = pct(st.s_neg1 && st.s_neg1.conversion);
+  var s0_conv     = pct(st.s0 && st.s0.conversion);
+  var s1_conv     = pct(st.s1 && st.s1.conversion);
+  var s2_conv     = pct(st.s2 && st.s2.conversion);
+  var s3_conv     = pct(st.s3 && st.s3.conversion);
+
+  // Weekly log values
+  var qualOppsWeek  = safe(wl.new_qual_opps_week, 0);
+  var qualOppsQ     = safe(wl.new_qual_opps_q, 0);
+  var lostToQual    = safe(wl.lost_to_qual, 0);
+  var stalledOpps   = safe(wl.stalled_opps, 0);
+  var bantFilled    = safe(wl.bant_filled_pct ? pct(wl.bant_filled_pct) : 0, 0);
+  var bantTotal     = safe(wl.bant_filled_pct_series ? null : 0);
+  var nextStepPct   = pct(wl.next_step_pct);
+  var icpWeek       = safe(wl.icp_enriched_week, 0);
+  var icpQ          = safe(wl.icp_enriched_q_series ? wl.icp_enriched_q_series[wl.icp_enriched_q_series.length-1] : 0, 0);
+  var forecastAct   = pct(wl.forecast_conv_actual);
+  var forecastAss   = pct(wl.forecast_conv_assumed) || 25;
+  var roadDone      = safe(wl.roadmap_done, 0);
+  var roadTotal     = safe(wl.roadmap_total, 10);
+  var regressions   = safe(wl.regressions, 0);
+  var lostToValue   = safe(wl.lost_to_value, 0);
+  var activeUsers   = safe(wl.active_users, 0);
+  var provUsers     = safe(wl.provisioned_users, 0);
+  var activeUserPct = provUsers > 0 ? Math.round(activeUsers/provUsers*100) : safe(pct(wl.active_users_pct), 0);
+  var totalSessions = safe(wl.total_sessions, 0);
+  var version       = wl.version_released_series ? wl.version_released_series[wl.version_released_series.length-1] : '';
+
+  // Coverage
+  var s2actual  = safe(mo.coverage_reachout_actual, 0);
+  var s2needed  = safe(mo.coverage_reachout_needed, 67);
+  var totalCusts = safe(mo.total_customers, 1);
+  var totalARR   = safe(mo.total_arr, 48000);
+
+  // Spark data (last 12 weeks of new qual opps)
+  var sparkArr = (wl.new_qual_opps_week_series || []).slice(-12);
+  while (sparkArr.length < 12) sparkArr.unshift(0);
+  sparkArr = sparkArr.map(function(v){ return safe(v,0); });
+
+  // Source data from quarterly
+  var qSrc = d.quarterly || {};
+  var srcNames = ['Conference','Chris','Chris Dinner','SDR','Referral','Internal','Inbound','Outbound'];
+  var srcKeys  = ['Conference (opps)','Chris (opps)','Chris Dinner (opps)','SDR (opps)','Referral (opps)','Internal (opps)','Inbound (opps)','Outbound (opps)'];
+  var srcOpps  = srcKeys.map(function(k){ var arr = qSrc[k]; return arr ? safe(arr[0],0) : 0; });
+
+  // Month label
+  var monthLabel = d.currentMonth || 'Current';
+  var weekLabel  = d.currentWeek  || 'Current Week';
+  var quarter    = 'Q2 2026';
+
+  var html = buildWeeklyHTML({
+    quarter: quarter, weekLabel: weekLabel, monthLabel: monthLabel,
+    s_neg2_active: s_neg2_active, s_neg1_active: s_neg1_active,
+    s0_active: s0_active, s1_active: s1_active, s2_active: s2_active,
+    s3_active: s3_active, s4_active: s4_active,
+    s_neg1_conv: s_neg1_conv, s0_conv: s0_conv, s1_conv: s1_conv,
+    s2_conv: s2_conv, s3_conv: s3_conv,
+    qualOppsWeek: qualOppsWeek, qualOppsQ: qualOppsQ,
+    lostToQual: lostToQual, stalledOpps: stalledOpps,
+    bantFilled: bantFilled, nextStepPct: nextStepPct,
+    icpWeek: icpWeek, icpQ: icpQ,
+    forecastAct: forecastAct, forecastAss: forecastAss,
+    roadDone: roadDone, roadTotal: roadTotal,
+    regressions: regressions, lostToValue: lostToValue,
+    activeUsers: activeUsers, provUsers: provUsers, activeUserPct: activeUserPct,
+    totalSessions: totalSessions, version: version,
+    s2actual: s2actual, s2needed: s2needed,
+    totalCusts: totalCusts, totalARR: totalARR,
+    sparkArr: sparkArr, srcNames: srcNames, srcOpps: srcOpps
+  });
+
+  return html;
+}
+
+function buildWeeklyHTML(p) {
+  var q = p.quarter;
+  var custs = p.totalCusts;
+  var custTarget = 3; // Q2 target
+  var custPct = Math.min(100, Math.round(custs/custTarget*100));
+  var custStatus = custs>=custTarget?'good':custs>=custTarget*.7?'warn':'bad';
+  var custBadge = custs>=custTarget?'✓ Target met!':custs>=custTarget*.7?'⚡ On track':'✗ Behind';
+
+  var s2pct = Math.min(100, Math.round(p.s2actual/p.s2needed*100));
+  var s2status = s2pct>=80?'warn':s2pct>=100?'good':'bad';
+  var s2badge = s2pct>=100?'✓ On track':s2pct>=80?'⚡ In progress':'✗ Behind';
+  var s2color = s2pct>=100?'var(--teal)':s2pct>=80?'var(--amber)':'var(--red)';
+
+  var lqStatus = p.lostToQual===0?'good':p.lostToQual<=3?'warn':'bad';
+  var lqBadge  = p.lostToQual===0?'✓ On track':p.lostToQual<=3?'⚡ Monitor':'✗ Action needed';
+
+  var stStatus = p.stalledOpps===0?'good':p.stalledOpps<=5?'warn':'bad';
+  var stBadge  = p.stalledOpps===0?'✓ Clear':'✗ Escalate now';
+
+  var bantStatus = p.bantFilled>=40?'good':p.bantFilled>=20?'warn':'bad';
+  var nsStatus   = p.nextStepPct>=80?'good':p.nextStepPct>=50?'warn':'bad';
+
+  var icpPct    = Math.min(100, Math.round(p.icpQ/2000*100));
+  var icpStatus = icpPct>=80?'good':icpPct>=40?'warn':'bad';
+
+  var roadPct    = p.roadTotal>0 ? Math.min(100,Math.round(p.roadDone/p.roadTotal*100)) : 0;
+  var roadStatus = roadPct>=90?'good':roadPct>=70?'warn':'bad';
+  var roadColor  = roadPct>=90?'var(--green)':roadPct>=70?'var(--amber)':'var(--red)';
+
+  var regStatus = p.regressions===0?'good':p.regressions<=2?'warn':'bad';
+  var lvStatus  = p.lostToValue===0?'good':p.lostToValue<=2?'warn':'bad';
+  var dauStatus = p.activeUserPct>=70?'good':p.activeUserPct>=50?'warn':'bad';
+  var dauBadge  = p.activeUserPct>=70?'✓ ≥70% goal':p.activeUserPct>=50?'⚡ Growing':'✗ Low adoption';
+
+  // Spark SVG
+  var sparkSVG = buildSparkSVG(p.sparkArr, 20);
+
+  // Funnel rows
+  var fDef = [
+    {lbl:'S(-2) Target Account',  tgt:20,  val:p.s_neg2_active, conv:null},
+    {lbl:'S(-1) Initial Outreach', tgt:50,  val:p.s_neg1_active, conv:p.s_neg1_conv},
+    {lbl:'S0  Meeting Booked',     tgt:60,  val:p.s0_active,     conv:p.s0_conv},
+    {lbl:'S1  Need Validation',    tgt:55,  val:p.s1_active,     conv:p.s1_conv},
+    {lbl:'S2  Value Realization',  tgt:60,  val:p.s2_active,     conv:p.s2_conv},
+    {lbl:'S3  Proposal Sent',      tgt:80,  val:p.s3_active,     conv:p.s3_conv},
+    {lbl:'S4  Legal / Final Appr.',tgt:95,  val:p.s4_active,     conv:null},
+    {lbl:'★  Lost',                tgt:0,   val:0,               conv:null, isLost:true},
+  ];
+
+  var funnelHTML = buildFunnelHTML(fDef);
+  var funnelVisHTML = buildFunnelVis(fDef);
+
+  // Source rows
+  var srcColors = ['#00DCC7','#4A1A8C','#7B4FD4','#D1B8FF','#059669','#D97706','#DC2626','#1E4FA3'];
+  var srcTotal  = p.srcOpps.reduce(function(a,b){return a+b},0)||1;
+  var srcRows   = p.srcNames.map(function(name,i){
+    var o = p.srcOpps[i]||0;
+    var opPct = Math.round(o/srcTotal*100);
+    return '<tr><td style="font-weight:500"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+srcColors[i]+';margin-right:5px;vertical-align:middle"></span>'+name+'</td>'
+      +'<td style="text-align:center;font-weight:800;font-size:13px">'+o+'</td>'
+      +'<td style="text-align:center;font-size:11px">'+opPct+'%</td>'
+      +'</tr>';
+  }).join('');
+
+  return `<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lizo.ai · GTM Dashboard</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --dark:#1E033E;--p1:#4A1A8C;--p2:#7B4FD4;--p3:#B99AF0;--lp:#D1B8FF;
+  --teal:#00DCC7;--gray:#6B7280;--lgray:#9CA3AF;
+  --border:rgba(74,26,140,0.12);--font:'Poppins','Segoe UI',sans-serif;
+  --green:#059669;--gbg:#ECFDF5;--red:#DC2626;--rbg:#FEF2F2;--amber:#D97706;--abg:#FFFBEB;
+  --card-bg:#F0EBFF;--card-key-bg:#E8DEFF;--card-edge:#C5B0F0;--card-key-edge:#A98EDF;
+  --t-section:16px;--t-kpi-lbl:11px;--t-def:9px;
+  --t-num-xl:52px;--t-num-lg:36px;--t-num-md:22px;--t-num-sm:14px;
+  --t-body:11px;--t-badge:10px;--t-micro:9px;
+}
+body{font-family:var(--font);background:#DDD6EF;color:var(--dark);min-height:100vh}
+.hdr{background:var(--dark);padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:17px;font-weight:800;color:#fff;letter-spacing:-.3px}.logo span{color:var(--teal)}
+.qbadge{background:var(--p1);color:var(--lp);font-size:var(--t-micro);font-weight:600;padding:3px 10px;border-radius:20px}
+.page{padding:14px 20px;display:flex;flex-direction:column;gap:12px}
+.sec{background:#F8F5FF;border-radius:14px;border:1px solid rgba(123,79,212,.15);overflow:hidden;
+  box-shadow:0 1px 0 0 rgba(255,255,255,.9) inset,0 4px 0 0 rgba(123,79,212,.18),0 6px 16px rgba(74,26,140,.10)}
+.sec-hdr{padding:0 18px;display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;height:52px}
+.sec-hdr.q{background:linear-gradient(135deg,#2A0A52,#1E033E)}
+.sec-hdr.s{background:linear-gradient(135deg,#5E22A8,#4A1A8C)}
+.sec-hdr.r{background:linear-gradient(135deg,#128060,#0F6E56)}
+.sec-hdr.p{background:linear-gradient(135deg,#4A3DA0,#3C3489)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--teal);flex-shrink:0}
+.sec-sub{font-size:var(--t-micro);font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:rgba(255,255,255,.45)}
+.sec-ttl{font-size:var(--t-section);font-weight:800;color:#fff;letter-spacing:-.2px}
+.tog{margin-left:auto;color:rgba(255,255,255,.4);font-size:18px;transition:transform .2s;line-height:1}
+.sec-body{padding:16px 18px;background:#F8F5FF}
+.sec-body.closed{display:none}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.div{height:1px;background:var(--border);margin:14px 0}
+.kpi{background:var(--card-bg);border-radius:12px;padding:14px 16px;position:relative;
+  border:1px solid rgba(123,79,212,.18);
+  box-shadow:0 1px 0 rgba(255,255,255,.85) inset,0 3px 0 var(--card-edge),0 5px 12px rgba(74,26,140,.12)}
+.kpi.key{background:var(--card-key-bg);border:2px solid var(--p3);
+  box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 3px 0 var(--card-key-edge),0 6px 14px rgba(74,26,140,.16)}
+.kpi.key::before{content:'★ KEY';position:absolute;top:-1px;right:10px;
+  background:linear-gradient(135deg,var(--p2),var(--p1));color:#fff;font-size:8px;font-weight:700;
+  padding:2px 7px;border-radius:0 0 6px 6px;letter-spacing:.5px}
+.lbl{font-size:var(--t-kpi-lbl);font-weight:700;color:var(--p1);text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px}
+.freq{display:inline-block;font-size:8px;font-weight:600;color:var(--p2);background:rgba(123,79,212,.12);padding:1px 6px;border-radius:8px;letter-spacing:.4px;text-transform:uppercase;margin-left:6px;vertical-align:middle}
+.def{font-size:var(--t-def);color:var(--lgray);font-weight:400;margin-bottom:10px;line-height:1.45}
+.sub{font-size:var(--t-body);color:var(--gray);margin-top:3px}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:10px;font-size:var(--t-badge);font-weight:700}
+.good{background:var(--gbg);color:var(--green)}
+.bad{background:var(--rbg);color:var(--red)}
+.warn{background:var(--abg);color:var(--amber)}
+.neu{background:rgba(123,79,212,.1);color:var(--p2)}
+.pbar{height:8px;border-radius:4px;background:rgba(74,26,140,.08);overflow:hidden;margin:6px 0}
+.pfill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--p2),var(--p3))}
+.hbar{height:12px;border-radius:6px;background:rgba(74,26,140,.08);overflow:hidden;margin:5px 0}
+.hfill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--p1),var(--p2))}
+.cust-track{height:16px;border-radius:8px;background:rgba(74,26,140,.08);overflow:hidden;margin:10px 0 6px}
+.cust-fill{height:100%;border-radius:8px;background:linear-gradient(90deg,var(--p1),var(--p2));transition:width .5s}
+.stalled-box{background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.15);border-radius:9px;padding:12px 14px;display:flex;align-items:center;gap:12px;margin:8px 0}
+.num{font-weight:800;line-height:1}
+.stbl{width:100%;border-collapse:collapse;font-size:var(--t-body)}
+.stbl th{padding:6px 7px;font-size:var(--t-micro);font-weight:700;color:var(--p2);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);text-align:left}
+.stbl td{padding:7px 7px;border-bottom:1px solid rgba(74,26,140,.05);vertical-align:middle}
+.stbl tr:last-child td{border-bottom:none}
+.sec-section-lbl{font-size:var(--t-kpi-lbl);font-weight:700;color:var(--p2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+</style></head><body>
+
+<div class="hdr">
+  <div>
+    <div class="logo">lizo<span>.ai</span></div>
+    <div style="font-size:10px;color:var(--lp)">GTM Dashboard · ${q}</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <div class="qbadge">${q}</div>
+    <span style="font-size:9px;color:rgba(255,255,255,.3)">Live from Google Sheets</span>
+  </div>
+</div>
+
+<div class="page">
+
+<!-- ══ 1. QUARTERLY FOCUS ══ -->
+<div class="sec">
+  <div class="sec-hdr q" onclick="tog('q')">
+    <div class="dot"></div>
+    <div><div class="sec-sub">North Star</div><div class="sec-ttl">Quarterly Focus KPIs</div></div>
+    <div class="tog" id="tg-q">▾</div>
+  </div>
+  <div class="sec-body" id="bd-q">
+    <div class="g3">
+
+      <div class="kpi key">
+        <div class="lbl">New Customers <span class="freq">Quarterly</span></div>
+        <div class="def">Paying customers who signed a contract this quarter. Goal: ${custTarget}</div>
+        <div style="display:flex;align-items:baseline;gap:10px;margin-top:4px">
+          <span class="num" style="font-size:var(--t-num-xl)">${custs}</span>
+          <span style="font-size:22px;color:var(--gray);font-weight:500">/ ${custTarget}</span>
+          <span style="font-size:13px;color:var(--gray)">${q} goal</span>
+        </div>
+        <div class="cust-track"><div class="cust-fill" style="width:${custPct}%;background:${custs>=custTarget?'var(--teal)':custs>=custTarget*.7?'var(--amber)':'var(--red)'}"></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="sub">${custPct}% of goal</span>
+          <span class="badge ${custStatus}">${custBadge}</span>
+        </div>
+      </div>
+
+      <div class="kpi key">
+        <div class="lbl">% Won — Conversion Rate <span class="freq">Monthly</span></div>
+        <div class="def">% of trials that converted to paying customers. Goal: ≥ 25%</div>
+        <div style="text-align:center;margin:12px 0 4px">
+          <span class="num" style="font-size:56px">${p.forecastAct}</span>
+          <span style="font-size:20px;color:var(--gray);font-weight:700">%</span>
+          <div style="font-size:10px;color:var(--lgray);margin-top:4px">goal ≥ 25%</div>
+        </div>
+        <div style="display:flex;justify-content:flex-end">
+          <span class="badge ${p.forecastAct>=25?'good':p.forecastAct>=15?'warn':'bad'}">${p.forecastAct>=25?'✓ ≥25% goal':'✗ Below goal'}</span>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="lbl">Pipeline Coverage <span class="freq">Monthly</span></div>
+        <div class="def">S(-2) Target Accounts created vs. monthly goal. Goal: ${p.s2needed}/month</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+          <span class="num" style="font-size:var(--t-num-xl)">${p.s2actual}</span>
+          <span style="font-size:22px;color:var(--gray);font-weight:500">/ ${p.s2needed}</span>
+          <span style="font-size:13px;color:var(--gray)">monthly goal</span>
+        </div>
+        <div class="cust-track" style="background:rgba(123,79,212,.1)"><div class="cust-fill" style="width:${s2pct}%;background:${s2color}"></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span class="sub">${s2pct}% of monthly goal</span>
+          <span class="badge ${s2status}">${s2badge}</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ 2. SALES ══ -->
+<div class="sec">
+  <div class="sec-hdr s" onclick="tog('s')">
+    <div class="dot"></div>
+    <div><div class="sec-sub">Block 1–2</div><div class="sec-ttl">Sales KPIs</div></div>
+    <div class="tog" id="tg-s">▾</div>
+  </div>
+  <div class="sec-body" id="bd-s">
+    <div class="g3" style="margin-bottom:12px">
+
+      <div class="kpi key">
+        <div class="lbl">New Qualified Opportunities <span class="freq">Weekly</span></div>
+        <div class="def">Opportunities that passed qualification this week. Weekly target: 20</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin:4px 0">
+          <span class="num" style="font-size:var(--t-num-lg)">${p.qualOppsWeek}</span>
+          <span style="font-size:14px;color:var(--gray)">/ 20 this week</span>
+        </div>
+        <div class="sub">Q2 cumulative: <strong>${p.qualOppsQ}</strong> opps</div>
+        <div style="height:38px;margin-top:8px">${sparkSVG}</div>
+        <div style="display:flex;justify-content:flex-end;margin-top:4px">
+          <span class="badge ${p.qualOppsWeek>=20?'good':p.qualOppsWeek>=14?'warn':'bad'}">${p.qualOppsWeek>=20?'✓ At target':p.qualOppsWeek>=14?'⚡ Below target':'✗ Below target'}</span>
+        </div>
+      </div>
+
+      <div class="kpi key">
+        <div class="lbl">Lost to Qualification <span class="freq">Weekly</span></div>
+        <div class="def">Leads disqualified before becoming an opportunity. Goal: 0 cases.</div>
+        <div style="display:flex;align-items:flex-end;gap:20px;margin:10px 0 6px">
+          <div>
+            <span class="num" style="font-size:56px;color:${p.lostToQual===0?'var(--dark)':p.lostToQual<=3?'var(--amber)':'var(--red)'}">${p.lostToQual}</span>
+            <div style="font-size:10px;color:var(--gray);margin-top:2px">cases this period</div>
+          </div>
+          <div style="flex:1;padding-bottom:4px">
+            <div style="font-size:9px;color:var(--gray);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">vs Goal</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+              <div style="width:28px;height:28px;border-radius:6px;background:var(--gbg);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--green)">0</div>
+              <span style="font-size:10px;color:var(--gray)">goal</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="width:28px;height:28px;border-radius:6px;background:${p.lostToQual===0?'var(--gbg)':p.lostToQual<=3?'var(--abg)':'var(--rbg)'};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:${p.lostToQual===0?'var(--green)':p.lostToQual<=3?'var(--amber)':'var(--red)'}">${p.lostToQual}</div>
+              <span style="font-size:10px;color:var(--gray)">over goal</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+          <span class="badge ${lqStatus}">${lqBadge}</span>
+        </div>
+      </div>
+
+      <div class="kpi key">
+        <div class="lbl">Stalled Opportunities <span class="freq">Weekly</span></div>
+        <div class="def">Opportunities with no recorded activity for over 30 days. Goal: 0</div>
+        <div class="stalled-box">
+          <span class="num" style="font-size:42px;color:${p.stalledOpps===0?'var(--dark)':'var(--red)'}">${p.stalledOpps}</span>
+          <div>
+            <div style="font-size:11px;color:${p.stalledOpps===0?'var(--green)':'var(--red)'};font-weight:600">stalled accounts</div>
+            <div style="font-size:9px;color:#EF4444">no activity > 30 days · goal: 0</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end">
+          <span class="badge ${stStatus}">${stBadge}</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="div"></div>
+
+    <div>
+      <div class="sec-section-lbl">Conversion Rates by Stage</div>
+      ${funnelHTML}
+    </div>
+
+    <div class="div"></div>
+
+    <div>
+      <div class="sec-section-lbl">Open Opps by Stage</div>
+      ${funnelVisHTML}
+    </div>
+
+    <div class="div"></div>
+
+    <div>
+      <div class="sec-section-lbl">Pipeline Health</div>
+      <div class="g2" style="gap:14px">
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="font-size:12px;font-weight:600">% BANT Filled</span>
+            <span style="font-size:14px;font-weight:800;color:${p.bantFilled>=40?'var(--green)':p.bantFilled>=20?'var(--amber)':'var(--red)'}">${p.bantFilled}%</span>
+          </div>
+          <div class="hbar"><div class="hfill" style="width:${Math.min(100,p.bantFilled)}%;background:${p.bantFilled>=40?'var(--green)':p.bantFilled>=20?'var(--amber)':'var(--red)'}"></div></div>
+          <div style="display:flex;align-items:center;margin-top:5px">
+            <span style="font-size:10px;color:var(--gray)">goal ≥ 40%</span>
+            <span class="badge ${bantStatus}" style="margin-left:auto">${p.bantFilled>=40?'✓ On track':p.bantFilled>=20?'⚡ Close':'✗ Below target'}</span>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="font-size:12px;font-weight:600">% Next Step Scheduled</span>
+            <span style="font-size:14px;font-weight:800;color:${p.nextStepPct>=80?'var(--green)':p.nextStepPct>=50?'var(--amber)':'var(--red)'}">${p.nextStepPct}%</span>
+          </div>
+          <div class="hbar"><div class="hfill" style="width:${Math.min(100,p.nextStepPct)}%;background:${p.nextStepPct>=80?'var(--green)':p.nextStepPct>=50?'var(--amber)':'var(--red)'}"></div></div>
+          <div style="display:flex;align-items:center;margin-top:5px">
+            <span style="font-size:10px;color:var(--gray)">goal ≥ 80%</span>
+            <span class="badge ${nsStatus}" style="margin-left:auto">${p.nextStepPct>=80?'✓ On track':p.nextStepPct>=50?'⚡ Close':'✗ Below target'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ 3. REVOPS ══ -->
+<div class="sec">
+  <div class="sec-hdr r" onclick="tog('r')">
+    <div class="dot"></div>
+    <div><div class="sec-sub">Operations</div><div class="sec-ttl">RevOps</div></div>
+    <div class="tog" id="tg-r">▾</div>
+  </div>
+  <div class="sec-body" id="bd-r">
+    <div class="g2">
+
+      <div class="kpi" style="align-self:start">
+        <div class="lbl">ICP Account Enrichment</div>
+        <div class="def">ICP accounts enriched with data. Goal: 2,000 this quarter</div>
+        <div class="g2" style="gap:10px;margin:10px 0">
+          <div style="background:rgba(30,3,62,.04);border-radius:9px;padding:10px;text-align:center">
+            <div style="font-size:9px;font-weight:600;color:var(--p2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">This Week</div>
+            <span class="num" style="font-size:var(--t-num-md)">${p.icpWeek}</span>
+            <div style="font-size:9px;color:var(--gray);margin-top:3px">accounts</div>
+          </div>
+          <div style="background:rgba(30,3,62,.04);border-radius:9px;padding:10px;text-align:center">
+            <div style="font-size:9px;font-weight:600;color:var(--p2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Q2 Total</div>
+            <span class="num" style="font-size:var(--t-num-md)">${p.icpQ}</span>
+            <span style="font-size:11px;color:var(--gray)">/ 2000</span>
+            <div style="font-size:9px;color:var(--gray);margin-top:3px">cumulative</div>
+          </div>
+        </div>
+        <div class="pbar" style="height:10px"><div class="pfill" style="width:${icpPct}%;background:var(--teal)"></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:5px">
+          <span class="sub">${icpPct}% of Q2 target</span>
+          <span class="badge ${icpStatus}">${icpPct>=80?'✓ On track':icpPct>=40?'⚡ In progress':'✗ Behind'}</span>
+        </div>
+      </div>
+
+      <div class="kpi">
+        <div class="lbl">Forecast Accuracy</div>
+        <div class="def">Assumed vs actual conversion rate</div>
+        <div class="g2" style="gap:8px;margin-top:10px">
+          <div style="text-align:center;background:rgba(30,3,62,.04);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:var(--gray);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Assumed</div>
+            <span class="num" style="font-size:var(--t-num-md)">${p.forecastAss}</span>
+            <span style="font-size:13px;color:var(--gray)">%</span>
+          </div>
+          <div style="text-align:center;background:rgba(30,3,62,.04);border-radius:8px;padding:10px">
+            <div style="font-size:9px;color:var(--gray);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Actual</div>
+            <span class="num" style="font-size:var(--t-num-md)">${p.forecastAct}</span>
+            <span style="font-size:13px;color:var(--gray)">%</span>
+          </div>
+        </div>
+        <div style="background:rgba(30,3,62,.04);border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+          <span style="font-size:11px;font-weight:600">Delta vs assumption</span>
+          <span style="font-size:20px;font-weight:700;color:${p.forecastAct-p.forecastAss>=0?'var(--green)':'var(--red)'}">${p.forecastAct-p.forecastAss>=0?'+':''}${p.forecastAct-p.forecastAss}pp</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ 4. PRODUCT ══ -->
+<div class="sec">
+  <div class="sec-hdr p" onclick="tog('p')">
+    <div class="dot"></div>
+    <div><div class="sec-sub">Engineering & Product</div><div class="sec-ttl">Product</div></div>
+    <div class="tog" id="tg-p">▾</div>
+  </div>
+  <div class="sec-body" id="bd-p">
+    <div class="g3" style="margin-bottom:12px">
+
+      <div class="kpi key">
+        <div class="lbl">Roadmap Execution <span class="freq">Weekly</span></div>
+        <div class="def">% of planned roadmap items completed. Goal: ≥ 90%</div>
+        <div style="display:flex;align-items:center;gap:10px;margin:10px 0 6px">
+          <div style="text-align:center;background:rgba(74,26,140,.06);border-radius:9px;padding:10px 14px">
+            <div style="font-size:9px;color:var(--lgray);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Done</div>
+            <span class="num" style="font-size:28px">${p.roadDone}</span>
+          </div>
+          <div style="font-size:22px;color:var(--lgray);font-weight:300">/</div>
+          <div style="text-align:center;background:rgba(74,26,140,.06);border-radius:9px;padding:10px 14px">
+            <div style="font-size:9px;color:var(--lgray);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Total</div>
+            <span class="num" style="font-size:28px">${p.roadTotal}</span>
+          </div>
+          <div style="flex:1;text-align:center">
+            <div style="font-size:9px;color:var(--lgray);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">%</div>
+            <span class="num" style="font-size:28px;color:${roadColor}">${roadPct}%</span>
+          </div>
+        </div>
+        <div class="pbar" style="height:12px;margin:8px 0">
+          <div class="pfill" style="width:${roadPct}%;background:${roadColor}"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+          <span style="font-size:10px;color:var(--lgray)">goal ≥ 90%</span>
+          <span class="badge ${roadStatus}">${roadPct>=90?'✓ ≥90% goal':roadPct>=70?'⚡ Below goal':'✗ Needs attention'}</span>
+        </div>
+      </div>
+
+      <div class="kpi key">
+        <div class="lbl">Product Regressions <span class="freq">Per Release</span></div>
+        <div class="def">Bugs found in release testing. Goal: 0 per release</div>
+        ${p.version ? '<div style="display:flex;align-items:center;gap:8px;margin:8px 0 10px;padding:7px 10px;background:rgba(30,3,62,.05);border-radius:8px"><span style="font-size:10px;color:var(--gray);font-weight:600">Version:</span><span style="font-size:13px;font-weight:700">'+p.version+'</span></div>' : ''}
+        <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:8px">
+          <div style="min-width:80px">
+            <span class="num" style="font-size:var(--t-num-xl);color:${p.regressions===0?'var(--dark)':'var(--red)'}">${p.regressions}</span>
+            <div style="font-size:var(--t-body);color:var(--lgray);margin-top:4px">regressions</div>
+          </div>
+          <div style="flex:1;padding-top:6px">
+            <div style="font-size:var(--t-micro);color:var(--lgray);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">vs Goal (0)</div>
+            <span class="badge ${regStatus}">${p.regressions===0?'✓ No regressions':p.regressions<=2?'⚡ '+p.regressions+' found':'✗ '+p.regressions+' — escalate'}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi key">
+        <div class="lbl">Lost to Value Gap <span class="freq">Weekly</span></div>
+        <div class="def">Deals lost where lizo didn't prove sufficient value. Goal: 0 cases.</div>
+        <div style="display:flex;align-items:flex-end;gap:20px;margin:10px 0 6px">
+          <div>
+            <span class="num" style="font-size:56px;color:${p.lostToValue===0?'var(--green)':'var(--red)'}">${p.lostToValue}</span>
+            <div style="font-size:10px;color:var(--gray);margin-top:2px">cases this period</div>
+          </div>
+          <div style="flex:1;padding-bottom:4px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+              <div style="width:28px;height:28px;border-radius:6px;background:var(--gbg);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--green)">0</div>
+              <span style="font-size:10px;color:var(--gray)">goal</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+          <span class="badge ${lvStatus}">${p.lostToValue===0?'✓ On track':p.lostToValue<=2?'⚡ Monitor closely':'✗ Product issue'}</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="div"></div>
+
+    <div>
+      <div class="sec-section-lbl">Usage — Active Users</div>
+      <div class="g2" style="gap:14px">
+        <div class="kpi">
+          <div class="lbl">Active Users <span class="freq">Weekly</span></div>
+          <div class="def">% of provisioned lizo accounts with ≥1 session in last 7 days. Goal: 70%</div>
+          <div style="display:flex;align-items:center;gap:16px;margin:8px 0 6px">
+            <div style="display:flex;align-items:baseline;gap:4px">
+              <span class="num" style="font-size:var(--t-num-lg)">${p.activeUserPct}</span>
+              <span style="font-size:20px;color:var(--p2);font-weight:700">%</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="font-size:var(--t-body);color:var(--gray)">Provisioned: <strong>${p.provUsers}</strong> accounts</div>
+              <div style="font-size:var(--t-body);color:var(--gray)">Active: <strong>${p.activeUsers}</strong> accounts</div>
+            </div>
+          </div>
+          <div class="pbar" style="height:10px"><div class="pfill" style="width:${Math.min(100,p.activeUserPct)}%;background:${p.activeUserPct>=70?'var(--green)':p.activeUserPct>=50?'var(--p2)':'var(--p3)'}"></div></div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px">
+            <span class="sub">goal: 70% of provisioned accounts active</span>
+            <span class="badge ${dauStatus}">${dauBadge}</span>
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="lbl">Total Sessions <span class="freq">Weekly</span></div>
+          <div class="def">Total sessions across all active lizo accounts this week</div>
+          <div style="display:flex;align-items:baseline;gap:6px;margin:8px 0">
+            <span class="num" style="font-size:var(--t-num-lg)">${p.totalSessions}</span>
+            <span style="font-size:13px;color:var(--gray);font-weight:500">total sessions</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ 5. SOURCES ══ -->
+<div class="sec">
+  <div class="sec-hdr" style="background:linear-gradient(135deg,#1E4FA3,#163980)" onclick="tog('src')">
+    <div class="dot"></div>
+    <div><div class="sec-sub">Pipeline</div><div class="sec-ttl">Opportunity Sources</div></div>
+    <div class="tog" id="tg-src">▾</div>
+  </div>
+  <div class="sec-body" id="bd-src">
+    <table class="stbl">
+      <thead><tr>
+        <th>Source</th>
+        <th style="text-align:center">Opps</th>
+        <th style="text-align:center">% of Total</th>
+      </tr></thead>
+      <tbody>${srcRows}</tbody>
+    </table>
+  </div>
+</div>
+
+</div><!-- /page -->
+
+<script>
+function tog(id){
+  var b=document.getElementById('bd-'+id),t=document.getElementById('tg-'+id);
+  if(!b)return;
+  var c=b.classList.toggle('closed');
+  if(t)t.style.transform=c?'rotate(-90deg)':'';
+}
+<\/script>
+</body></html>`;
+}
+
+function buildSparkSVG(data, target) {
+  var W=200, H=38, padT=4, padB=8;
+  var allVals = data.concat([target]);
+  var mx = Math.max.apply(null, allVals) || 1;
+  var pts = data.map(function(val,i){
+    return (i/(data.length-1)*W).toFixed(1)+','+(padT+(H-padT-padB)*(1-val/mx)).toFixed(1);
+  });
+  var ty = (padT+(H-padT-padB)*(1-target/mx)).toFixed(1);
+  var html = '';
+  html += '<polygon points="0,'+(H-padB)+' '+pts.join(' ')+' '+W+','+(H-padB)+'" fill="rgba(0,220,199,0.12)"/>';
+  html += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="#00DCC7" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  html += '<line x1="0" y1="'+ty+'" x2="'+W+'" y2="'+ty+'" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="4,3"/>';
+  return '<svg width="100%" height="38" viewBox="0 0 200 38" preserveAspectRatio="none">'+html+'</svg>';
+}
+
+function buildFunnelHTML(fDef) {
+  var html = '<table style="width:100%;border-collapse:collapse"><tr>';
+  ['Stage','Active','Target%','Actual%','Δ'].forEach(function(h){
+    html += '<th style="border-bottom:1px solid rgba(74,26,140,.12);padding:5px 6px;font-size:9px;font-weight:700;color:#7B4FD4;text-transform:uppercase;letter-spacing:.4px;text-align:'+(h==='Stage'?'left':'center')+'">'+ h +'</th>';
+  });
+  html += '</tr>';
+  fDef.forEach(function(s){
+    if(s.isLost) return;
+    var hasCv = s.conv !== null && s.conv !== undefined;
+    var delta = hasCv ? Math.round(s.conv - s.tgt) : null;
+    var dc = delta === null ? 'var(--lgray)' : delta >= 0 ? 'var(--green)' : 'var(--red)';
+    html += '<tr style="background:#F9F7FF">';
+    html += '<td style="padding:7px 8px;font-size:11px;font-weight:600">'+s.lbl+'</td>';
+    html += '<td style="padding:6px;text-align:center;font-size:13px;font-weight:800">'+s.val+'</td>';
+    html += '<td style="padding:6px;text-align:center;font-size:10px;color:var(--lgray)">'+(s.tgt||'—')+'%</td>';
+    html += '<td style="padding:6px;text-align:center;font-size:13px;font-weight:800">'+(hasCv ? s.conv+'%' : '—')+'</td>';
+    html += '<td style="padding:6px;text-align:center;font-size:12px;font-weight:700;color:'+dc+'">'+(delta===null?'—':(delta>=0?'+':'')+delta+'pp')+'</td>';
+    html += '</tr>';
+  });
+  html += '</table>';
+  return html;
+}
+
+function buildFunnelVis(fDef) {
+  var stages = fDef.filter(function(s){return !s.isLost});
+  var max = Math.max.apply(null, stages.map(function(s){return s.val||0})) || 1;
+  var W=560, H=130, n=stages.length;
+  var bw = Math.floor(W/n*0.55), gap = Math.floor(W/n);
+  var html = '';
+  var colors = ['#4A1A8C','#7B4FD4','#9B6FE0','#B99AF0','#00DCC7','#059669','#D97706'];
+  stages.forEach(function(s,i){
+    var bh = Math.max(8, Math.round(s.val/max*(H-30)));
+    var x = Math.round(i*gap + (gap-bw)/2);
+    var y = H-20-bh;
+    html += '<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+bh+'" rx="4" fill="'+colors[i%colors.length]+'" opacity="0.85"/>';
+    html += '<text x="'+(x+bw/2)+'" y="'+(y-4)+'" text-anchor="middle" font-size="10" font-family="Poppins,sans-serif" fill="#1E033E" font-weight="800">'+s.val+'</text>';
+    var lbl = s.lbl.split(' ')[0];
+    html += '<text x="'+(x+bw/2)+'" y="'+(H-4)+'" text-anchor="middle" font-size="8" font-family="Poppins,sans-serif" fill="#6B7280">'+lbl+'</text>';
+  });
+  return '<svg width="100%" height="'+H+'" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">'+html+'</svg>';
+}
+
+// ── MONTHLY & QUARTERLY (simplified) ──────────────
+function buildMonthly(d) {
+  var mo = d.monthly || {};
+  var headers = d.monthHeaders || [];
+  var totalCusts = safe(mo.total_customers, 1);
+  var totalARR   = safe(mo.total_arr, 48000);
+  var q = 'Q2 2026';
+
+  return `<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lizo.ai · Monthly Summary</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--dark:#1E033E;--p1:#4A1A8C;--p2:#7B4FD4;--teal:#00DCC7;--font:'Poppins','Segoe UI',sans-serif;
+  --green:#059669;--gbg:#ECFDF5;--red:#DC2626;--rbg:#FEF2F2;--amber:#D97706;--abg:#FFFBEB;
+  --card-bg:#F0EBFF;--card-key-bg:#E8DEFF;--card-edge:#C5B0F0;--lgray:#9CA3AF;--gray:#6B7280}
+body{font-family:var(--font);background:#DDD6EF;color:var(--dark);min-height:100vh;padding:20px}
+.hdr{background:var(--dark);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;border-radius:12px;margin-bottom:16px}
+.logo{font-size:17px;font-weight:800;color:#fff}.logo span{color:var(--teal)}
+.qbadge{background:var(--p1);color:#D1B8FF;font-size:9px;font-weight:600;padding:3px 10px;border-radius:20px}
+.kpi{background:var(--card-key-bg);border-radius:12px;padding:14px 16px;position:relative;
+  border:2px solid #B99AF0;box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 3px 0 #A98EDF,0 6px 14px rgba(74,26,140,.16)}
+.kpi::before{content:'★ KEY';position:absolute;top:-1px;right:10px;background:linear-gradient(135deg,var(--p2),var(--p1));
+  color:#fff;font-size:8px;font-weight:700;padding:2px 7px;border-radius:0 0 6px 6px;letter-spacing:.5px}
+.lbl{font-size:11px;font-weight:700;color:var(--p1);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.num{font-weight:800;line-height:1}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:10px;font-size:10px;font-weight:700}
+.good{background:var(--gbg);color:var(--green)}.bad{background:var(--rbg);color:var(--red)}.warn{background:var(--abg);color:var(--amber)}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+.pbar{height:8px;border-radius:4px;background:rgba(74,26,140,.08);overflow:hidden;margin:6px 0}
+.pfill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--p2),#B99AF0)}
+.tbl{width:100%;border-collapse:collapse;font-size:11px;background:var(--card-bg);border-radius:12px;overflow:hidden}
+.tbl th{padding:8px 12px;font-size:9px;font-weight:700;color:var(--p2);text-transform:uppercase;letter-spacing:.5px;background:#E8DEFF;text-align:left}
+.tbl td{padding:7px 12px;border-bottom:1px solid rgba(74,26,140,.08)}
+.tbl tr:last-child td{border-bottom:none}
+.sec-lbl{font-size:11px;font-weight:700;color:var(--p2);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 8px}
+</style></head><body>
+<div class="hdr">
+  <div><div class="logo">lizo<span>.ai</span></div><div style="font-size:10px;color:#D1B8FF">Monthly Summary · ${q}</div></div>
+  <div class="qbadge">${q}</div>
+</div>
+
+<div class="g3">
+  <div class="kpi">
+    <div class="lbl">Total Customers</div>
+    <span class="num" style="font-size:52px">${totalCusts}</span>
+    <div style="font-size:10px;color:var(--lgray);margin-top:4px">cumulative paying customers</div>
+  </div>
+  <div class="kpi">
+    <div class="lbl">Total ARR</div>
+    <span class="num" style="font-size:36px">${money(totalARR)}</span>
+    <div style="font-size:10px;color:var(--lgray);margin-top:4px">annual recurring revenue</div>
+  </div>
+  <div class="kpi">
+    <div class="lbl">New Customers This Month</div>
+    <span class="num" style="font-size:52px">${safe(mo.new_customers,0)}</span>
+    <div style="font-size:10px;color:var(--lgray);margin-top:4px">closed this month</div>
+  </div>
+</div>
+
+<div class="sec-lbl">Pipeline by Stage — Monthly</div>
+<table class="tbl">
+  <thead><tr>
+    <th>Stage</th><th style="text-align:center">Entered</th><th style="text-align:center">Active</th><th style="text-align:center">Conv%</th><th style="text-align:right">vs Target</th>
+  </tr></thead>
+  <tbody>
+    ${['s_neg2','s_neg1','s0','s1','s2','s3','s4'].map(function(key,i){
+      var labels = ['S(-2) Reachout','S(-1) Connected','S0 Pipeline Lead','S1 Discovery','S2 Value Realization','S3 Commercial Alignment','S4 Contracting'];
+      var stg = mo[key] || {};
+      var entered  = safe(stg.entered, 0);
+      var active   = safe(stg.active, 0);
+      var conv     = stg.conversion !== undefined ? pct(stg.conversion) : null;
+      var vs       = stg.vs_target;
+      var vsNum    = vs && vs !== '-' && vs !== '' ? parseFloat(vs) : null;
+      var vsStr    = vsNum === null ? '—' : (vsNum>=0?'+':'')+Math.round(vsNum*100)+'pp';
+      var vsColor  = vsNum === null ? 'var(--lgray)' : vsNum>=0 ? 'var(--green)' : 'var(--red)';
+      return '<tr><td style="font-weight:600">'+labels[i]+'</td>'
+        +'<td style="text-align:center;font-weight:700">'+entered+'</td>'
+        +'<td style="text-align:center;font-weight:700">'+active+'</td>'
+        +'<td style="text-align:center">'+(conv!==null?conv+'%':'—')+'</td>'
+        +'<td style="text-align:right;font-weight:700;color:'+vsColor+'">'+vsStr+'</td>'
+        +'</tr>';
+    }).join('')}
+  </tbody>
+</table>
+
+</body></html>`;
+}
+
+function buildQuarterly(d) {
+  var q = d.quarterly || {};
+  var headers = q.headers || [];
+  var mo = d.monthly || {};
+
+  var srcKeys  = ['Conference (opps)','Chris (opps)','Chris Dinner (opps)','SDR (opps)','Referral (opps)','Internal (opps)','Inbound (opps)','Outbound (opps)'];
+  var srcNames = ['Conference','Chris','Chris Dinner','SDR','Referral','Internal','Inbound','Outbound'];
+  var srcColors= ['#00DCC7','#4A1A8C','#7B4FD4','#D1B8FF','#059669','#D97706','#DC2626','#1E4FA3'];
+
+  var srcRows = srcNames.map(function(name,i){
+    var arr = q[srcKeys[i]] || [];
+    return '<tr><td style="font-weight:500"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+srcColors[i]+';margin-right:5px;vertical-align:middle"></span>'+name+'</td>'
+      + headers.slice(0,4).map(function(_,qi){ return '<td style="text-align:center;font-weight:700">'+(safe(arr[qi],0)||0)+'</td>'; }).join('')
+      + '</tr>';
+  }).join('');
+
+  var qLabel = 'Q2 2026';
+  return `<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lizo.ai · Quarterly Summary</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--dark:#1E033E;--p1:#4A1A8C;--p2:#7B4FD4;--teal:#00DCC7;--font:'Poppins','Segoe UI',sans-serif;
+  --green:#059669;--gbg:#ECFDF5;--red:#DC2626;--rbg:#FEF2F2;--amber:#D97706;--abg:#FFFBEB;
+  --card-bg:#F0EBFF;--card-key-bg:#E8DEFF;--card-edge:#C5B0F0;--lgray:#9CA3AF}
+body{font-family:var(--font);background:#DDD6EF;color:var(--dark);min-height:100vh;padding:20px}
+.hdr{background:var(--dark);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;border-radius:12px;margin-bottom:16px}
+.logo{font-size:17px;font-weight:800;color:#fff}.logo span{color:var(--teal)}
+.qbadge{background:var(--p1);color:#D1B8FF;font-size:9px;font-weight:600;padding:3px 10px;border-radius:20px}
+.kpi{background:var(--card-key-bg);border-radius:12px;padding:14px 16px;position:relative;
+  border:2px solid #B99AF0;box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 3px 0 #A98EDF,0 6px 14px rgba(74,26,140,.16)}
+.kpi::before{content:'★ KEY';position:absolute;top:-1px;right:10px;background:linear-gradient(135deg,var(--p2),var(--p1));
+  color:#fff;font-size:8px;font-weight:700;padding:2px 7px;border-radius:0 0 6px 6px;letter-spacing:.5px}
+.lbl{font-size:11px;font-weight:700;color:var(--p1);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.num{font-weight:800;line-height:1}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:10px;font-size:10px;font-weight:700}
+.good{background:var(--gbg);color:var(--green)}.bad{background:var(--rbg);color:var(--red)}.warn{background:var(--abg);color:var(--amber)}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px}
+.tbl{width:100%;border-collapse:collapse;font-size:11px;background:var(--card-bg);border-radius:12px;overflow:hidden}
+.tbl th{padding:8px 12px;font-size:9px;font-weight:700;color:var(--p2);text-transform:uppercase;letter-spacing:.5px;background:#E8DEFF;text-align:center}
+.tbl th:first-child{text-align:left}
+.tbl td{padding:7px 12px;border-bottom:1px solid rgba(74,26,140,.08);text-align:center}
+.tbl td:first-child{text-align:left;font-weight:600}
+.tbl tr:last-child td{border-bottom:none}
+.sec-lbl{font-size:11px;font-weight:700;color:var(--p2);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 8px}
+</style></head><body>
+<div class="hdr">
+  <div><div class="logo">lizo<span>.ai</span></div><div style="font-size:10px;color:#D1B8FF">Quarterly Summary · ${qLabel}</div></div>
+  <div class="qbadge">${qLabel}</div>
+</div>
+
+<div class="g4">
+  ${['New Customers (end of Q)','S-2 Accounts Added','New Qualified Opps (total)','Lost to Qualification (total)'].map(function(metric){
+    var arr = q[metric] || [];
+    var v = safe(arr[0], 0);
+    return '<div class="kpi"><div class="lbl">'+metric+'</div><span class="num" style="font-size:40px">'+v+'</span><div style="font-size:9px;color:var(--lgray);margin-top:4px">Q2 2026</div></div>';
+  }).join('')}
+</div>
+
+<div class="sec-lbl">Opportunity Sources — Q2 2026</div>
+<table class="tbl">
+  <thead><tr>
+    <th>Source</th>
+    ${headers.slice(0,4).map(function(h){ return '<th>'+h+'</th>'; }).join('')}
+  </tr></thead>
+  <tbody>${srcRows}</tbody>
+</table>
+
+</body></html>`;
+}
+
+// ── FETCH & RENDER ─────────────────────────────────
+function setLoader(msg) {
+  var el = document.getElementById('loader-msg');
+  if (el) el.textContent = msg;
+}
+
+window.addEventListener('DOMContentLoaded', function(){
+  var ts = document.getElementById('loader-ts');
+  if (ts) ts.textContent = 'Connecting to Google Sheets…';
+
+  fetch(API_URL, {redirect: 'follow', mode: 'cors'})
+    .then(function(r){
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      setLoader('Parsing data…');
+      return r.json();
+    })
+    .then(function(data){
+      setLoader('Building dashboard…');
+
+      var generatedAt = data.generated ? new Date(data.generated).toLocaleString() : '';
+      if (ts) ts.textContent = 'Last updated: ' + generatedAt;
+
+      // Build all three views
+      var weeklyHTML    = buildWeekly(data);
+      var monthlyHTML   = buildMonthly(data);
+      var quarterlyHTML = buildQuarterly(data);
+
+      document.getElementById('frame-weekly').srcdoc    = weeklyHTML;
+      document.getElementById('frame-monthly').srcdoc   = monthlyHTML;
+      document.getElementById('frame-quarterly').srcdoc = quarterlyHTML;
+
+      // Show UI
+      setTimeout(function(){
+        document.getElementById('loader').style.display = 'none';
+        document.getElementById('tabbar').style.display = 'flex';
+      }, 300);
+    })
+    .catch(function(err){
+      setLoader('⚠ Could not load data: ' + err.message + '. Check the API URL or CORS settings.');
+      if (ts) ts.textContent = 'Try refreshing. If the issue persists, redeploy the Apps Script.';
+      console.error(err);
+    });
+
+  // Tab switching
+  var tabs = document.querySelectorAll('.tab-btn');
+  var frameIds = ['frame-weekly','frame-monthly','frame-quarterly'];
+  tabs.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      tabs.forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      frameIds.forEach(function(id){
+        document.getElementById(id).classList.toggle('active', id === btn.dataset.target);
+      });
+    });
+  });
+});
+</script>
+</body>
+</html>
