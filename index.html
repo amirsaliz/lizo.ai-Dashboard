@@ -154,6 +154,14 @@ function buildWeekly(d) {
   var weekLabel  = d.currentWeek  || 'Current Week';
   var quarter    = 'Q2 2026';
 
+  // Format timestamp
+  var generatedAt = '';
+  if (d.generated) {
+    var gd = new Date(d.generated);
+    var pad = function(n){ return n < 10 ? '0'+n : ''+n; };
+    generatedAt = pad(gd.getDate())+'/'+(pad(gd.getMonth()+1))+'/'+gd.getFullYear()+' '+pad(gd.getHours())+':'+pad(gd.getMinutes());
+  }
+
   var html = buildWeeklyHTML({
     quarter: quarter, weekLabel: weekLabel, monthLabel: monthLabel,
     s_neg2_active: s_neg2_active, s_neg1_active: s_neg1_active,
@@ -172,7 +180,8 @@ function buildWeekly(d) {
     totalSessions: totalSessions, version: version,
     s2actual: s2actual, s2needed: s2needed,
     totalCusts: totalCusts, totalARR: totalARR,
-    sparkArr: sparkArr, srcNames: srcNames, srcOpps: srcOpps
+    sparkArr: sparkArr, srcNames: srcNames, srcOpps: srcOpps,
+    generatedAt: generatedAt
   });
 
   return html;
@@ -181,7 +190,7 @@ function buildWeekly(d) {
 function buildWeeklyHTML(p) {
   var q = p.quarter;
   var custs = p.totalCusts;
-  var custTarget = 3; // Q2 target
+  var custTarget = safe(d.quarterlyNewCustTarget, 2);
   var custPct = Math.min(100, Math.round(custs/custTarget*100));
   var custStatus = custs>=custTarget?'good':custs>=custTarget*.7?'warn':'bad';
   var custBadge = custs>=custTarget?'✓ Target met!':custs>=custTarget*.7?'⚡ On track':'✗ Behind';
@@ -318,7 +327,7 @@ body{font-family:var(--font);background:#DDD6EF;color:var(--dark);min-height:100
   </div>
   <div style="display:flex;align-items:center;gap:8px">
     <div class="qbadge">${q}</div>
-    <span style="font-size:9px;color:rgba(255,255,255,.3)">Live from Google Sheets</span>
+    <span style="font-size:9px;color:rgba(255,255,255,.3)">Live from Google Sheets &nbsp;·&nbsp; Last updated: ${p.generatedAt}</span>
   </div>
 </div>
 
