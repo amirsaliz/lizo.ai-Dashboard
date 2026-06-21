@@ -182,7 +182,7 @@ function buildWeekly(d) {
     totalCusts: totalCusts, totalARR: totalARR,
     sparkArr: sparkArr, srcNames: srcNames, srcOpps: srcOpps,
     generatedAt: generatedAt,
-    custTarget: safe(d.quarterlyNewCustTarget, 2)
+    custTarget: (d.quarterlyNewCustTarget && d.quarterlyNewCustTarget > 0) ? d.quarterlyNewCustTarget : 2
   });
 
   return html;
