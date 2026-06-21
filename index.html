@@ -181,7 +181,8 @@ function buildWeekly(d) {
     s2actual: s2actual, s2needed: s2needed,
     totalCusts: totalCusts, totalARR: totalARR,
     sparkArr: sparkArr, srcNames: srcNames, srcOpps: srcOpps,
-    generatedAt: generatedAt
+    generatedAt: generatedAt,
+    custTarget: safe(d.quarterlyNewCustTarget, 2)
   });
 
   return html;
@@ -190,7 +191,7 @@ function buildWeekly(d) {
 function buildWeeklyHTML(p) {
   var q = p.quarter;
   var custs = p.totalCusts;
-  var custTarget = safe(d.quarterlyNewCustTarget, 2);
+  var custTarget = safe(p.custTarget, 2);
   var custPct = Math.min(100, Math.round(custs/custTarget*100));
   var custStatus = custs>=custTarget?'good':custs>=custTarget*.7?'warn':'bad';
   var custBadge = custs>=custTarget?'✓ Target met!':custs>=custTarget*.7?'⚡ On track':'✗ Behind';
@@ -946,9 +947,9 @@ window.addEventListener('DOMContentLoaded', function(){
 
       var generatedAt = '';
       if (data.generated) {
-        var d = new Date(data.generated);
+        var dt = new Date(data.generated);
         var pad = function(n){ return n < 10 ? '0'+n : n; };
-        generatedAt = pad(d.getDate())+'/'+(pad(d.getMonth()+1))+'/'+d.getFullYear()+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+        generatedAt = pad(dt.getDate())+'/'+(pad(dt.getMonth()+1))+'/'+dt.getFullYear()+' '+pad(dt.getHours())+':'+pad(dt.getMinutes());
       }
       if (ts) ts.textContent = 'Last updated: ' + generatedAt;
       var lu = document.getElementById('last-updated');
