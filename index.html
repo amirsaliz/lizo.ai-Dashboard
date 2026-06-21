@@ -51,6 +51,7 @@ iframe.active{display:block}
   <button class="tab-btn active" data-target="frame-weekly">Weekly</button>
   <button class="tab-btn" data-target="frame-monthly">Monthly Summary</button>
   <button class="tab-btn" data-target="frame-quarterly">Quarterly Summary</button>
+  <span id="last-updated" style="margin-left:auto;font-size:9px;color:rgba(209,184,255,.45);font-weight:500"></span>
 </div>
 <div class="frame-wrap">
   <iframe id="frame-weekly" class="active"></iframe>
@@ -132,6 +133,8 @@ function buildWeekly(d) {
   // Coverage
   var s2actual  = safe(mo.coverage_reachout_actual, 0);
   var s2needed  = safe(mo.coverage_reachout_needed, 67);
+  if (s2needed === 0 && d.coverage) s2needed = safe(d.coverage.reachout_needed, 67);
+  if (s2actual === 0 && d.coverage) s2actual = safe(d.coverage.reachout_actual, 0);
   var totalCusts = safe(mo.total_customers, 1);
   var totalARR   = safe(mo.total_arr, 48000);
 
@@ -932,8 +935,15 @@ window.addEventListener('DOMContentLoaded', function(){
     .then(function(data){
       setLoader('Building dashboard…');
 
-      var generatedAt = data.generated ? new Date(data.generated).toLocaleString() : '';
+      var generatedAt = '';
+      if (data.generated) {
+        var d = new Date(data.generated);
+        var pad = function(n){ return n < 10 ? '0'+n : n; };
+        generatedAt = pad(d.getDate())+'/'+(pad(d.getMonth()+1))+'/'+d.getFullYear()+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+      }
       if (ts) ts.textContent = 'Last updated: ' + generatedAt;
+      var lu = document.getElementById('last-updated');
+      if (lu) lu.textContent = 'Last updated: ' + generatedAt;
 
       // Build all three views
       var weeklyHTML    = buildWeekly(data);
