@@ -265,16 +265,27 @@ function buildWeeklyTab(d){
     var y=(4+(30-4)*(1-v/mx)).toFixed(1);
     return '<circle cx="'+x+'" cy="'+y+'" r="2.5" fill="var(--blue)"/>';
   }).join('');
-  var sparkSVG='<svg width="100%" height="40" viewBox="0 0 200 40" xmlns="http://www.w3.org/2000/svg">'
+  // Build hover data for sparkline
+  var wkLabels=(wl.new_qual_opps_week_series||[]).slice(-12);
+  var sparkDataAttrs=sparkData.map(function(v,i){
+    var wkNum=d.currentWeekIdx-11+i;
+    return 'data-v'+i+'="'+v+'" data-w'+i+'="W'+wkNum+'"';
+  }).join(' ');
+  var sparkSVG='<div style="position:relative" id="spark-wrap">'
+    +'<svg width="100%" height="40" viewBox="0 0 200 40" xmlns="http://www.w3.org/2000/svg" style="cursor:crosshair" '+sparkDataAttrs+'>'
     +'<polygon points="10,34 '+sparkPts+' 190,34" fill="rgba(105,159,255,0.08)"/>'
     +'<polyline points="'+sparkPts+'" fill="none" stroke="#699FFF" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'
     +dotPts
     +'<line x1="10" y1="'+tgtY+'" x2="190" y2="'+tgtY+'" stroke="#DC2626" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>'
     +'<text x="192" y="'+(parseFloat(tgtY)+3)+'" font-size="7" fill="#DC2626" font-family="Poppins,sans-serif">tgt</text>'
+    +'<rect id="spark-hit" x="10" y="0" width="180" height="40" fill="transparent"/>'
     +'</svg>'
+    +'<div id="spark-tooltip" style="display:none;position:absolute;background:#1E033E;color:#fff;font-size:10px;font-family:Poppins,sans-serif;padding:4px 8px;border-radius:6px;pointer-events:none;white-space:nowrap;z-index:9;top:-28px;transform:translateX(-50%)"></div>'
+    +'</div>'
     +'<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:2px">'
     +'<span>12 weeks ago</span><span style="color:#699FFF">— actual</span><span style="color:#DC2626">— target (20/wk)</span><span>now</span>'
     +'</div>';
+  // Tooltip logic added after render
 
   // Overall S1→Won: sum all entered S1 series vs all won (approximate from stage active)
   var s1Series=(st.s1&&st.s1.entered_series)||[];
@@ -300,7 +311,7 @@ function buildWeeklyTab(d){
   <!-- FUNNEL -->
   <div class="sec-lbl">Open Opps by Stage</div>
   <div class="funnel-wrap" style="margin-bottom:14px">
-    ${funnelSVG}
+    <svg id="sv-funnel-vis" width="100%" height="130" viewBox="0 0 560 130" preserveAspectRatio="xMidYMid meet"></svg>
   </div>
 
   <!-- STAGE MOVEMENT -->
@@ -745,13 +756,21 @@ function buildQuarterlyTab(d){
     </div>
     <div class="card">
       <div class="card-lbl">S(-2) Accounts Added</div>
-      <div class="card-val">${s2Added}</div>
-      <div class="card-sub">reachout accounts this quarter</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin:4px 0">
+        <span class="card-val">${s2Added}</span>
+        <span style="font-size:16px;color:var(--muted)">/ 200</span>
+      </div>
+      <div class="card-sub">${Math.round(s2Added/200*100)}% of Q2 target (200)</div>
+      ${badge(s2Added,200,130,'✓ On track','⚡ Building','✗ Behind')}
     </div>
     <div class="card">
       <div class="card-lbl">New Qualified Opps</div>
-      <div class="card-val">${newQualOpps}</div>
-      <div class="card-sub">lost to qual: ${lostQual}</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin:4px 0">
+        <span class="card-val">${newQualOpps}</span>
+        <span style="font-size:16px;color:var(--muted)">/ 60</span>
+      </div>
+      <div class="card-sub">${Math.round(newQualOpps/60*100)}% of Q2 target · lost to qual: ${lostQual}</div>
+      ${badge(newQualOpps,60,40,'✓ On track','⚡ Below target','✗ Behind')}
     </div>
   </div>
 
@@ -801,6 +820,108 @@ function buildQuarterlyTab(d){
 </div>`;
 }
 
+// ── HELPERS FOR OLD FUNNEL ─────────────────────────────────
+function E(id){return document.getElementById(id)}
+
+function funnelVis(vals){
+  var svg=E('sv-funnel-vis');if(!svg)return
+  var W=560,H=130,n=7
+  var stageVals=vals.slice(0,n)
+  var mx=stageVals[0]||1
+  var labels=['S-2','S-1','S0','S1','S2','S3','S4']
+  var faceColors=['#3B1278','#4A1A8C','#6B38B8','#8A5CD4','#A87EE8','#C0A2F4','#00BFA8']
+  var shadowColors=['#2A0A55','#380F6A','#541E92','#6E42B0','#8A62CC','#A086DC','#008A78']
+  var labelColors=['#7B50D4','#9068E0','#A882EA','#C0A4F2','#D4C0F8','#E8DCF8','#00DCC7']
+
+  var segW=Math.floor(W/n)
+  var maxHalf=H/2-22   // max half-height for largest stage
+  var minHalf=5
+  var midY=H/2+6       // centre, shifted down to leave label room above
+  var shadowOff=6      // 3D shadow offset (depth)
+  var html=''
+
+  // Build defs for gradients
+  stageVals.forEach(function(_,i){
+    var gid='gf'+i
+    html+='<defs>'
+    +'<linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1">'
+    +'<stop offset="0%" stop-color="rgba(255,255,255,0.35)"/>'
+    +'<stop offset="30%" stop-color="rgba(255,255,255,0.08)"/>'
+    +'<stop offset="100%" stop-color="rgba(0,0,0,0.28)"/>'
+    +'</linearGradient>'
+    +'</defs>'
+  })
+
+  stageVals.forEach(function(val,i){
+    var pct=Math.max(minHalf/maxHalf, val/mx)
+    var nextVal=i<n-1?stageVals[i+1]:0
+    var nextPct=i<n-1?Math.max(minHalf/maxHalf, nextVal/mx):(minHalf/maxHalf)*0.6
+
+    var lH=Math.round(pct*maxHalf)       // left half-height
+    var rH=Math.round(nextPct*maxHalf)   // right half-height (taper)
+
+    var x=i*segW
+    var w=segW
+
+    // 3D SHADOW (offset trapezoid behind/below)
+    var stl=midY-lH+shadowOff, sbl=midY+lH+shadowOff
+    var str=midY-rH+shadowOff, sbr=midY+rH+shadowOff
+    var shadowPts=[x+','+stl, (x+w)+','+str, (x+w)+','+sbr, x+','+sbl].join(' ')
+    html+='<polygon points="'+shadowPts+'" fill="'+shadowColors[i]+'" opacity="0.55"/>'
+
+    // FACE trapezoid
+    var tl=midY-lH, bl=midY+lH
+    var tr=midY-rH, br=midY+rH
+    var facePts=[x+','+tl, (x+w)+','+tr, (x+w)+','+br, x+','+bl].join(' ')
+    html+='<polygon points="'+facePts+'" fill="'+faceColors[i]+'"/>'
+
+    // GLOSS overlay
+    html+='<polygon points="'+facePts+'" fill="url(#gf'+i+')"/>'
+
+    // TOP EDGE (bright highlight strip — the "top face" of the 3D object)
+    // connects face top-left → face top-right → shadow top-right → shadow top-left
+    var topPts=[
+      x+','+tl,
+      (x+w)+','+tr,
+      (x+w)+','+str,
+      x+','+stl
+    ].join(' ')
+    html+='<polygon points="'+topPts+'" fill="rgba(255,255,255,0.22)"/>'
+
+    // RIGHT SIDE FACE (connects face right edge to shadow right edge)
+    if(i===n-1){
+      var sideR=[
+        (x+w)+','+tr,
+        (x+w)+','+br,
+        (x+w)+','+sbr,
+        (x+w)+','+str
+      ].join(' ')
+      html+='<polygon points="'+sideR+'" fill="rgba(0,0,0,0.3)"/>'
+    }
+
+    // Divider between segments (white line on face)
+    if(i<n-1){
+      html+='<line x1="'+(x+w)+'" y1="'+tr+'" x2="'+(x+w)+'" y2="'+br+'" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>'
+    }
+
+    // Stage label — above the segment
+    var cx=(x+w/2).toFixed(1)
+    html+='<text x="'+cx+'" y="'+(tl-6)+'" text-anchor="middle" font-size="9.5" font-family="Poppins,sans-serif" fill="'+labelColors[i]+'" font-weight="700">'+labels[i]+'</text>'
+
+    // Value inside if tall enough
+    var faceH=(lH+rH)  // average height * 2
+    if(faceH>=14){
+      var fs=faceH>44?13:faceH>24?11:9
+      html+='<text x="'+cx+'" y="'+(midY+fs/3)+'" text-anchor="middle" font-size="'+fs+'" font-family="Poppins,sans-serif" fill="rgba(255,255,255,0.95)" font-weight="800">'+val+'</text>'
+    } else {
+      html+='<text x="'+cx+'" y="'+(bl+shadowOff+11)+'" text-anchor="middle" font-size="10" font-family="Poppins,sans-serif" fill="'+labelColors[i]+'" font-weight="800">'+val+'</text>'
+    }
+  })
+
+  svg.setAttribute('viewBox','0 0 '+W+' '+H)
+  svg.innerHTML=html
+}
+
 // ── FETCH & RENDER ─────────────────────────────────────────
 window.addEventListener('DOMContentLoaded',function(){
   fetch(API_URL,{redirect:'follow',mode:'cors'})
@@ -819,6 +940,37 @@ window.addEventListener('DOMContentLoaded',function(){
       document.getElementById('tab-weekly').innerHTML=buildWeeklyTab(data);
       document.getElementById('tab-monthly').innerHTML=buildMonthlyTab(data);
       document.getElementById('tab-quarterly').innerHTML=buildQuarterlyTab(data);
+      // Draw 3D funnel with active stage values
+      var fv=[
+        n(data.stages&&data.stages.s_neg2&&data.stages.s_neg2.active,0),
+        n(data.stages&&data.stages.s_neg1&&data.stages.s_neg1.active,0),
+        n(data.stages&&data.stages.s0&&data.stages.s0.active,0),
+        n(data.stages&&data.stages.s1&&data.stages.s1.active,0),
+        n(data.stages&&data.stages.s2&&data.stages.s2.active,0),
+        n(data.stages&&data.stages.s3&&data.stages.s3.active,0),
+        n(data.stages&&data.stages.s4&&data.stages.s4.active,0)
+      ];
+      funnelVis(fv);
+      // Sparkline tooltip
+      setTimeout(function(){
+        var svgEl=document.querySelector('#spark-wrap svg');
+        var tip=document.getElementById('spark-tooltip');
+        if(!svgEl||!tip)return;
+        var sd=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        try{sd=JSON.parse(document.getElementById('tab-weekly').getAttribute('data-spark')||'[]');}catch(e){}
+        svgEl.addEventListener('mousemove',function(e){
+          var rect=svgEl.getBoundingClientRect();
+          var x=e.clientX-rect.left;
+          var pct=(x-10)/180;
+          var idx=Math.max(0,Math.min(11,Math.round(pct*11)));
+          var v=svgEl.getAttribute('data-v'+idx)||'—';
+          var w=svgEl.getAttribute('data-w'+idx)||'';
+          tip.style.display='block';
+          tip.style.left=((idx/11)*180+10)+'px';
+          tip.textContent=w+': '+v+' opps';
+        });
+        svgEl.addEventListener('mouseleave',function(){tip.style.display='none';});
+      },100);
       document.getElementById('loader').style.display='none';
       document.getElementById('shell').style.display='flex';
     })
