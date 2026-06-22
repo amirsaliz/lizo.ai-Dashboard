@@ -377,7 +377,9 @@ function buildMonthlyTab(d){
   var bantPct=pct(wl.bant_filled_pct)||0;
   var nsPct=pct(wl.next_step_pct)||0;
   var icpMonth=n(wl.icp_enriched_week,0);
-  var icpQ=n(wl.icp_enriched_q_cum,0);
+  var icpQLog=n(wl.icp_enriched_q_cum,0);
+  var icpQRollup=n((d.quarterly&&d.quarterly['ICP Enriched (Q total)']||[])[0],0);
+  var icpQ=icpQRollup>icpQLog?icpQRollup:icpQLog;
   var forecastAss=pct(wl.forecast_conv_assumed)||25;
   var roadDone=n(wl.roadmap_done,0);
   var roadTotal=n(wl.roadmap_total,10);
@@ -453,27 +455,23 @@ function buildMonthlyTab(d){
 
   <!-- MONTHLY FOCUS -->
   <div class="sec-lbl dark">Monthly Focus</div>
-  <div class="g4" style="margin-bottom:14px">
+  <div class="g3" style="margin-bottom:14px">
     <div class="card">
-      <div class="card-lbl">New Customers</div>
+      <div class="card-lbl">New Customers Closed</div>
       <div class="card-val teal">${newCusts}</div>
-      <div class="card-sub">closed this month</div>
+      <div class="card-sub">signed contracts this month</div>
     </div>
     <div class="card">
-      <div class="card-lbl">Total Customers</div>
-      <div class="card-val">${totalCusts}</div>
-      <div class="card-sub">cumulative</div>
-    </div>
-    <div class="card">
-      <div class="card-lbl">Total ARR</div>
-      <div class="card-val">${money(totalARR)}</div>
-      <div class="card-sub">annual recurring revenue</div>
-    </div>
-    <div class="card">
-      <div class="card-lbl">% Won</div>
+      <div class="card-lbl">% Won — Conversion Rate</div>
       <div class="card-val">${pctWon}%</div>
       <div class="card-sub">conversion to paid · goal ≥ 25%</div>
       ${badge(pctWon,25,15,'✓ ≥25% goal','⚡ Growing','✗ Below goal')}
+    </div>
+    <div class="card">
+      <div class="card-lbl">ICP Enriched Q2 Total</div>
+      <div class="card-val">${icpQ}</div>
+      <div class="card-sub">goal: 2,000 this quarter</div>
+      ${pbar(icpQ,2000,'var(--teal)')}
     </div>
   </div>
 
@@ -538,10 +536,9 @@ function buildMonthlyTab(d){
   <div class="sec-lbl dark">RevOps</div>
   <div class="g3" style="margin-bottom:14px">
     <div class="card">
-      <div class="card-lbl">ICP Enriched This Month</div>
+      <div class="card-lbl">ICP Enriched This Week</div>
       <div class="card-val">${icpMonth}</div>
-      <div class="card-sub">Q2 cumulative: <strong>${icpQ}</strong> / 2,000</div>
-      ${pbar(icpQ,2000,'var(--teal)')}
+      <div class="card-sub">most recently logged</div>
     </div>
     <div class="card">
       <div class="card-lbl">Forecast Conv Accuracy</div>
@@ -617,7 +614,7 @@ function buildQuarterlyTab(d){
   // From Quarterly Summary sheet targets
   // Q2 2026 customers target = 3 (from Quarterly Summary)
   var custTarget=(d.quarterlyNewCustTarget&&d.quarterlyNewCustTarget>0)?d.quarterlyNewCustTarget:2;
-  var custActual=n(mo.total_customers,0);
+  var custActual=Math.max(0,n(mo.total_customers,0)-1); // subtract 1 initial customer that was pre-existing
   var arrTarget=custTarget*48000;
   var arrActual=n(mo.total_arr,0);
 
@@ -647,12 +644,28 @@ function buildQuarterlyTab(d){
   });
 
   // Quarterly pipeline entered rows
+  // Quarterly targets from assumptions (needed per deal × Q2 customer target)
+  var qCustTgt=(d.quarterlyNewCustTarget&&d.quarterlyNewCustTarget>0)?d.quarterlyNewCustTarget:2;
+  var stageTgts={
+    's(-2) reachout': Math.round(qCustTgt*66.5),
+    's(-1) connected': Math.round(qCustTgt*13.3),
+    's0 pipeline lead': Math.round(qCustTgt*6.6),
+    's1 discovery':    Math.round(qCustTgt*4),
+    's2 value realization': Math.round(qCustTgt*2.2),
+    's3 commercial alignment': Math.round(qCustTgt*1.3),
+    's4 contracting':  Math.round(qCustTgt*1.1),
+  };
+
   var pipelineRows='';
   var monthlyStageKeys={s_neg2:'s_neg2',s_neg1:'s_neg1',s0:'s0',s1:'s1',s2:'s2',s3:'s3',s4:'s4'};
   pipelineStages.forEach(function(s){
     var mStg=mo[s.src]||{};
-    var entered=n(mStg.entered,0); // this is monthly, proxy for Q
-    pipelineRows+='<tr><td>'+s.key+'</td><td class="c" style="font-weight:700">'+entered+'</td><td class="c" style="color:var(--muted)">—</td><td class="r">—</td></tr>';
+    var entered=n(mStg.entered,0);
+    var tgt=stageTgts[s.key.toLowerCase()]||0;
+    var delta=tgt>0?entered-tgt:null;
+    var deltaStr2=delta===null?'—':(delta>=0?'<span class="delta-pos">+'+'</span>':'<span class="delta-neg">');
+    var dStr=delta===null?'<span class="delta-neu">—</span>':(delta>=0?'<span class="delta-pos">+'+delta+'</span>':'<span class="delta-neg">'+delta+'</span>');
+    pipelineRows+='<tr><td>'+s.key+'</td><td class="c" style="font-weight:700">'+entered+'</td><td class="c" style="color:var(--muted)">'+(tgt||'—')+'</td><td class="r">'+dStr+'</td></tr>';
   });
 
   var custPct=Math.min(100,custTarget>0?Math.round(custActual/custTarget*100):0);
