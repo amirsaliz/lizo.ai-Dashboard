@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lizo.ai · GTM Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/poppins/400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/poppins/700.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --dark:#1E033E;--blue:#699FFF;--lav:#D1B8FF;--teal:#00DCC7;
+  --surf:#F5F4FC;--border:#DDD8F0;--muted:#8B88A8;--body:#3A3660;
+  --ebf:#EBE4F8;--red:#DC2626;--rbg:#FEF2F2;--green:#059669;--gbg:#ECFDF5;--amber:#D97706;--abg:#FFFBEB;
+  --font:'Poppins',-apple-system,BlinkMacSystemFont,sans-serif;
+  --grad:linear-gradient(135deg,#C0B0E4 0%,#D2C8EE 30%,#E5DDF6 65%,#F3EFF9 100%);
+}
+html,body{height:100%;font-family:var(--font);background:#F0EDF9;color:var(--dark);overflow:hidden}
+
+/* ── SHELL ── */
+.shell{display:flex;flex-direction:column;height:100vh}
+
+/* ── TOPBAR ── */
+.topbar{background:var(--dark);padding:0 20px;display:flex;align-items:center;gap:12px;height:44px;flex-shrink:0}
+.logo{font-size:16px;font-weight:700;color:#fff;letter-spacing:-.3px}.logo span{color:var(--teal)}
+.topbar-sep{width:1px;height:20px;background:rgba(255,255,255,.12)}
+.tab-btn{background:transparent;color:rgba(255,255,255,.5);border:none;padding:5px 14px;border-radius:20px;cursor:pointer;font-family:var(--font);font-size:11px;font-weight:700;letter-spacing:.3px;transition:all .15s}
+.tab-btn.active{background:rgba(255,255,255,.12);color:#fff}
+.tab-btn:hover:not(.active){color:rgba(255,255,255,.8)}
+.topbar-right{margin-left:auto;font-size:9px;color:rgba(255,255,255,.35);white-space:nowrap}
+#ts-label{color:rgba(255,255,255,.5)}
+
+/* ── CONTENT ── */
+.content{flex:1;overflow:hidden;position:relative}
+.tab-pane{position:absolute;inset:0;overflow-y:auto;padding:16px 20px;display:none}
+.tab-pane.active{display:block}
+
+/* ── PERIOD HEADER ── */
+.period-hdr{background:var(--grad);border-radius:12px;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;border:0.5px solid var(--border)}
+.period-ttl{font-size:18px;font-weight:700;color:var(--dark)}
+.period-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.period-pill{background:rgba(209,184,255,.7);color:#4B3A7E;font-size:10px;font-weight:700;padding:3px 12px;border-radius:20px;letter-spacing:.3px}
+
+/* ── SECTION ── */
+.sec{margin-bottom:14px}
+.sec-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;padding-left:2px}
+.sec-lbl.dark{background:var(--dark);color:var(--lav);padding:6px 12px;border-radius:8px;margin-bottom:10px}
+
+/* ── GRID ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+
+/* ── CARD ── */
+.card{background:#fff;border:0.5px solid var(--border);border-radius:12px;padding:14px 16px}
+.card.surf{background:var(--surf)}
+.card-lbl{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.card-val{font-size:26px;font-weight:700;color:var(--dark);line-height:1.1}
+.card-val.lg{font-size:36px}
+.card-val.teal{color:var(--teal)}
+.card-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:8px;font-size:9px;font-weight:700;letter-spacing:.3px;margin-top:6px}
+.good{background:var(--gbg);color:var(--green)}
+.bad{background:var(--rbg);color:var(--red)}
+.warn{background:var(--abg);color:var(--amber)}
+.neu{background:var(--ebf);color:#4B3A7E}
+.pbar{height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin:6px 0}
+.pfill{height:100%;border-radius:2px}
+
+/* ── FUNNEL ── */
+.funnel-wrap{background:#fff;border:0.5px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+.funnel-svg{width:100%;height:80px}
+
+/* ── TABLE ── */
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{padding:7px 10px;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);text-align:left;background:var(--surf)}
+.tbl th.r{text-align:right}
+.tbl th.c{text-align:center}
+.tbl td{padding:7px 10px;border-bottom:0.5px solid var(--border);vertical-align:middle}
+.tbl td.r{text-align:right}
+.tbl td.c{text-align:center}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr.section-row td{background:var(--dark);color:var(--lav);font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:5px 10px}
+.tbl tr.pre td:first-child{color:var(--muted)}
+.delta-pos{color:var(--green);font-weight:700}
+.delta-neg{color:var(--red);font-weight:700}
+.delta-neu{color:var(--muted)}
+
+/* ── LOADER ── */
+#loader{position:fixed;inset:0;background:var(--dark);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:999}
+.loader-logo{font-size:26px;font-weight:700;color:#fff}.loader-logo span{color:var(--teal)}
+.spinner{width:28px;height:28px;border:2.5px solid rgba(209,184,255,.2);border-top-color:var(--lav);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-msg{font-size:12px;color:rgba(209,184,255,.6)}
+</style>
+</head>
+<body>
+<div id="loader">
+  <div class="loader-logo">lizo<span>.ai</span></div>
+  <div class="spinner"></div>
+  <div class="loader-msg" id="lmsg">Connecting to Google Sheets…</div>
+</div>
+
+<div class="shell" id="shell" style="display:none">
+  <div class="topbar">
+    <div class="logo">lizo<span>.ai</span></div>
+    <div class="topbar-sep"></div>
+    <button class="tab-btn active" onclick="switchTab('weekly')">Weekly</button>
+    <button class="tab-btn" onclick="switchTab('monthly')">Monthly Summary</button>
+    <button class="tab-btn" onclick="switchTab('quarterly')">Quarterly Summary</button>
+    <div class="topbar-right"><span id="ts-label">Last updated:</span> <span id="ts-val">—</span></div>
+  </div>
+  <div class="content">
+    <div class="tab-pane active" id="tab-weekly"></div>
+    <div class="tab-pane" id="tab-monthly"></div>
+    <div class="tab-pane" id="tab-quarterly"></div>
+  </div>
+</div>
+
+<script>
+var API_URL = 'https://script.google.com/macros/s/AKfycbwz8Y6yQZqUW-QA4vOQ2T6sJ5Np9XF5G4Rm3fT9SBAzy520WN0btJOYmEdGjVIwZl5z/exec';
+
+// ── HELPERS ────────────────────────────────────────────────
+function n(v,fb){if(v===undefined||v===null||v===''||v==='-')return fb!==undefined?fb:0;var x=parseFloat(v);return isNaN(x)?(fb!==undefined?fb:0):x;}
+function pct(v){if(v===undefined||v===null||v===''||v==='-')return null;var x=parseFloat(v);if(isNaN(x))return null;return x<1?Math.round(x*1000)/10:Math.round(x*10)/10;}
+function money(v){var x=n(v);if(x>=1000000)return '$'+(x/1000000).toFixed(1)+'M';if(x>=1000)return '$'+Math.round(x/1000)+'K';return '$'+x;}
+function badge(val,good,warn,goodLbl,warnLbl,badLbl){
+  var cls=val>=good?'good':val>=warn?'warn':'bad';
+  var lbl=val>=good?goodLbl:val>=warn?warnLbl:badLbl;
+  return '<span class="badge '+cls+'">'+lbl+'</span>';
+}
+function pbar(val,max,color){
+  var p=Math.min(100,max>0?Math.round(val/max*100):0);
+  return '<div class="pbar"><div class="pfill" style="width:'+p+'%;background:'+color+'"></div></div>';
+}
+function deltaStr(actual,target){
+  if(target===null||target===undefined||target===0)return '<span class="delta-neu">—</span>';
+  var d=Math.round((actual-target)*10)/10;
+  if(d>0)return '<span class="delta-pos">+'+d+'pp</span>';
+  if(d<0)return '<span class="delta-neg">'+d+'pp</span>';
+  return '<span class="delta-neu">0pp</span>';
+}
+function switchTab(id){
+  document.querySelectorAll('.tab-pane').forEach(function(el){el.classList.remove('active')});
+  document.querySelectorAll('.tab-btn').forEach(function(el){el.classList.remove('active')});
+  document.getElementById('tab-'+id).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ── WEEKLY TAB ─────────────────────────────────────────────
+function buildWeeklyTab(d){
+  var st=d.stages||{};
+  var wl=d.weeklyLog||{};
+  var week=d.currentWeek||'Current Week';
+
+  // Helper: get last non-empty value from series
+  function lastVal(v, series) {
+    var x = parseFloat(v);
+    if (!isNaN(x) && v !== '' && v !== '-') return x;
+    if (series) {
+      for (var i = series.length - 1; i >= 0; i--) {
+        var s = series[i];
+        if (s !== '' && s !== null && s !== '-') {
+          var y = parseFloat(s);
+          if (!isNaN(y)) return y;
+        }
+      }
+    }
+    return 0;
+  }
+
+  // Stage data
+  var stages=[
+    {key:'s_neg2',lbl:'S(-2) Reachout',pre:true,tgt_conv:null},
+    {key:'s_neg1',lbl:'S(-1) Connected',pre:true,tgt_conv:50},
+    {key:'s0',lbl:'S0 Meeting Booked',pre:false,tgt_conv:60},
+    {key:'s1',lbl:'S1 Need Validation',pre:false,tgt_conv:55},
+    {key:'s2',lbl:'S2 Value Realization',pre:false,tgt_conv:60},
+    {key:'s3',lbl:'S3 Commercial Alignment',pre:false,tgt_conv:80},
+    {key:'s4',lbl:'S4 Contracting',pre:false,tgt_conv:95},
+  ];
+
+  // Build funnel SVG
+  var stageLabels={'s_neg2':'S(-2)','s_neg1':'S(-1)','s0':'S0','s1':'S1','s2':'S2','s3':'S3','s4':'S4'};
+  var funnelData=stages.map(function(s){return{lbl:stageLabels[s.key]||s.key,val:n(st[s.key]&&st[s.key].active,0)};});
+  var maxVal=Math.max.apply(null,funnelData.map(function(f){return f.val}));
+  var W=600,H=70,n_stages=funnelData.length;
+  var segW=Math.floor(W/n_stages);
+  var colors=['#1E033E','#2E1060','#4A1A8C','#7B4FD4','#9B6FE0','#B99AF0','#00DCC7'];
+  var funnelSVG='<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="70" xmlns="http://www.w3.org/2000/svg">';
+  funnelData.forEach(function(f,i){
+    var h=maxVal>0?Math.max(10,Math.round(f.val/maxVal*(H-20))):10;
+    var y=Math.round((H-h)/2);
+    var x=i*segW;
+    funnelSVG+='<rect x="'+x+'" y="'+y+'" width="'+(segW-2)+'" height="'+h+'" rx="3" fill="'+colors[i%colors.length]+'" opacity="0.9"/>';
+    funnelSVG+='<text x="'+(x+segW/2)+'" y="'+(y+h/2+4)+'" text-anchor="middle" font-size="11" font-family="Poppins,sans-serif" fill="#fff" font-weight="700">'+f.val+'</text>';
+    funnelSVG+='<text x="'+(x+segW/2)+'" y="'+(H-2)+'" text-anchor="middle" font-size="8" font-family="Poppins,sans-serif" fill="var(--muted)">'+f.lbl+'</text>';
+  });
+  funnelSVG+='</svg>';
+
+  // Won/Lost this week
+  var wonWeek=n(st.won&&st.won.entered_this_week,0);
+  var lostRow=n(wl.customers_lost_week,0);
+
+  // Sales metrics
+  var qualOpps=n(wl.new_qual_opps_week,0);
+  var qualQ=n(wl.new_qual_opps_q,0);
+  var lostQual=n(wl.lost_to_qual,0);
+  var stalled=n(wl.stalled_opps,0);
+  var bantRaw=wl.bant_filled_pct; var bant=(bantRaw===''||bantRaw===null||bantRaw===undefined)?0:Math.round(parseFloat(bantRaw)*100);if(isNaN(bant))bant=0;
+  var nsRaw=wl.next_step_pct; var nextStep=(nsRaw===''||nsRaw===null||nsRaw===undefined)?0:Math.round(parseFloat(nsRaw)*100);if(isNaN(nextStep))nextStep=0;
+
+  // Conversion rates from S1 onward (this week)
+  var convRows='';
+  var convStages=[
+    {key:'s1',lbl:'S1 → S2',tgt:55},
+    {key:'s2',lbl:'S2 → S3',tgt:60},
+    {key:'s3',lbl:'S3 → S4',tgt:80},
+    {key:'s4',lbl:'S4 → Won',tgt:95},
+  ];
+  convStages.forEach(function(s){
+    var stg=st[s.key]||{};
+    var cv=pct(stg.conversion);
+    var cvStr=cv!==null?cv+'%':'—';
+    var delta=cv!==null?deltaStr(cv,s.tgt):'<span class="delta-neu">—</span>';
+    var dot=cv===null?'#DDD8F0':cv>=s.tgt?'var(--green)':cv>=s.tgt*.7?'var(--amber)':'var(--red)';
+    convRows+='<tr><td><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+dot+';margin-right:6px;vertical-align:middle"></span>'+s.lbl+'</td>'
+      +'<td class="c" style="font-weight:700">'+cvStr+'</td>'
+      +'<td class="c" style="color:var(--muted)">'+s.tgt+'%</td>'
+      +'<td class="r">'+delta+'</td></tr>';
+  });
+
+  // Stage movement table
+  var stageRows='';
+  var preDone=false;
+  stages.forEach(function(s,i){
+    var stg=st[s.key]||{};
+    if(s.pre&&!preDone){stageRows+='<tr class="section-row"><td colspan="5">Pre-Pipeline</td></tr>';preDone=true;}
+    if(!s.pre&&preDone){stageRows+='<tr class="section-row"><td colspan="5">Pipeline</td></tr>';preDone=false;}
+    var entered=n(stg.entered_this_week,0);
+    var moved=n(stg.moved_this_week,0);
+    var lost=n(stg.lost_this_week,0);
+    var active=n(stg.active,0);
+    stageRows+='<tr>'
+      +'<td style="font-weight:700">'+s.lbl+'</td>'
+      +'<td class="c">'+entered+'</td>'
+      +'<td class="c">'+moved+'</td>'
+      +'<td class="c" style="color:var(--red)">'+lost+'</td>'
+      +'<td class="c" style="font-weight:700;color:var(--blue)">'+active+'</td>'
+      +'</tr>';
+  });
+
+  // Spark SVG for qual opps
+  var sparkData=(wl.new_qual_opps_week_series||[]).slice(-12).map(function(v){var x=parseFloat(v);return isNaN(x)?0:x;});
+  while(sparkData.length<12)sparkData.unshift(0);
+  var SPARK_TGT=17;
+  // Scale includes target so line is always visible
+  var mx=Math.max.apply(null,sparkData.concat([SPARK_TGT]))||1;
+  var PT=6,PB=8,SH=44;
+  function sy(v){return (PT+(SH-PT-PB)*(1-v/mx)).toFixed(1);}
+  function sx(i){return (i/(sparkData.length-1)*180+10).toFixed(1);}
+  var sparkPts=sparkData.map(function(v,i){return sx(i)+','+sy(v);}).join(' ');
+  var tgtY=sy(SPARK_TGT);
+  var dotPts=sparkData.map(function(v,i){
+    var cx=sx(i),cy=sy(v);
+    var h='<circle cx="'+cx+'" cy="'+cy+'" r="3.5" fill="#699FFF" stroke="#fff" stroke-width="1.5"/>';
+    if(v>0){h+='<text x="'+cx+'" y="'+(parseFloat(cy)-6)+'" text-anchor="middle" font-size="8" font-family="Poppins,sans-serif" fill="#4B3A7E" font-weight="700">'+v+'</text>';}
+    return h;
+  }).join('');
+  // Tooltip data with real dates
+  var SD_START=Date.UTC(2026,2,30),SD_WK=604800000;
+  var SD_MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var sparkPts2=sparkData.map(function(v,i){
+    var col=d.currentWeekIdx-11+i;
+    var dt=new Date(SD_START+(col-1)*SD_WK);
+    var lbl=(dt.getUTCDate()<10?'0':'')+dt.getUTCDate()+'-'+SD_MN[dt.getUTCMonth()];
+    return {v:v,w:lbl};
+  });
+  var sparkDA='data-spark="'+JSON.stringify(sparkPts2).replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'" ';
+  var sparkSVG='<div style="position:relative" id="spark-wrap">'
+    +'<svg width="100%" height="'+SH+'" viewBox="0 0 200 '+SH+'" xmlns="http://www.w3.org/2000/svg" style="cursor:crosshair;overflow:visible" '+sparkDA+'>'
+    +'<polygon points="10,'+(SH-PB)+' '+sparkPts+' 190,'+(SH-PB)+'" fill="rgba(105,159,255,0.08)"/>'
+    +'<polyline points="'+sparkPts+'" fill="none" stroke="#699FFF" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+    +dotPts
+    +'<line x1="10" y1="'+tgtY+'" x2="183" y2="'+tgtY+'" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="4,3"/>'
+    +'<text x="186" y="'+(parseFloat(tgtY)+3.5)+'" font-size="8" fill="#DC2626" font-family="Poppins,sans-serif" font-weight="700">17</text>'
+    +'<rect x="10" y="0" width="180" height="'+SH+'" fill="transparent"/>'
+    +'</svg>'
+    +'<div id="spark-tooltip" style="display:none;position:absolute;background:#1E033E;color:#fff;font-size:10px;font-family:Poppins,sans-serif;padding:4px 8px;border-radius:6px;pointer-events:none;white-space:nowrap;z-index:9;top:-30px;transform:translateX(-50%)"></div>'
+    +'</div>'
+    +'<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:2px">'
+    +'<span>12 weeks ago</span><span style="color:#699FFF">&#8212; actual</span><span style="color:#DC2626">&#8212; 17/wk target</span><span>now</span>'
+    +'</div>';
+  // Tooltip logic added after render
+
+  // Overall S1→Won: sum all entered S1 series vs all won (approximate from stage active)
+  var s1Series=(st.s1&&st.s1.entered_series)||[];
+  var s1Total=s1Series.reduce(function(a,v){var x=parseFloat(v);return a+(isNaN(x)?0:x);},0);
+  // Won = customers closed (from weekly log series)
+  var wonSeries=(wl.customers_won_series||(st.won&&st.won.entered_series))||[];
+  var wonTotal=wonSeries.reduce(function(a,v){var x=parseFloat(v);return a+(isNaN(x)?0:x);},0);
+  // Fallback: use monthly total_customers
+  if(wonTotal===0) wonTotal=n(d.monthly&&d.monthly.total_customers,0)-1; // subtract initial customer
+  var overallConvNum=s1Total>0?Math.round(wonTotal/s1Total*100):null;
+  var overallConv=overallConvNum!==null?overallConvNum+'%':'—';
+  var overallDelta=overallConvNum!==null?deltaStr(overallConvNum,25):'<span class="delta-neu">—</span>';
+
+  return `<div>
+  <div class="period-hdr">
+    <div>
+      <div class="period-ttl">Weekly Dashboard</div>
+      <div class="period-sub">Week of: ${week}</div>
+    </div>
+    <div class="period-pill">Q2 2026</div>
+  </div>
+
+  <!-- FUNNEL -->
+  <div class="sec-lbl">Open Opps by Stage</div>
+  <div class="funnel-wrap" style="margin-bottom:14px">
+    <svg id="sv-funnel-vis" width="100%" height="130" viewBox="0 0 560 130" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+
+  <!-- STAGE MOVEMENT -->
+  <div class="sec-lbl">Account Movement This Week</div>
+  <div style="background:#fff;border:0.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px">
+    <table class="tbl">
+      <thead><tr>
+        <th>Stage</th>
+        <th class="c">Entered</th>
+        <th class="c">Moved</th>
+        <th class="c">Lost</th>
+        <th class="c">Active</th>
+      </tr></thead>
+      <tbody>${stageRows}</tbody>
+    </table>
+  </div>
+
+  <!-- WON/LOST + QUAL OPPS -->
+  <div class="g3" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-lbl">Customers Closed — Won</div>
+      <div class="card-val teal">${wonWeek}</div>
+      <div class="card-sub">deals signed this week</div>
+    </div>
+    <div class="card">
+      <div class="card-lbl">New Qualified Opps</div>
+      <div class="card-val">${qualOpps}</div>
+      <div class="card-sub">Q2 cumulative: <strong>${qualQ}</strong></div>
+      <div style="height:36px;margin-top:6px">${sparkSVG}</div>
+      ${badge(qualOpps,17,12,'✓ At target','⚡ Close','✗ Below target')}
+    </div>
+    <div class="card">
+      <div class="card-lbl">Lost to Qualification</div>
+      <div class="card-val" style="color:${lostQual===0?'var(--green)':'var(--red)'}">${lostQual}</div>
+      <div class="card-sub">goal: 0 cases</div>
+      ${badge(lostQual===0?1:0,1,1,'✓ On track','','✗ Action needed')}
+    </div>
+  </div>
+
+  <!-- STALLED + BANT + NEXT STEP -->
+  <div class="g3" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-lbl">Stalled Opportunities</div>
+      <div class="card-val" style="color:${stalled===0?'var(--dark)':'var(--red)'}">${stalled}</div>
+      <div class="card-sub">no activity > 30 days · goal: 0</div>
+      ${badge(stalled===0?1:0,1,1,'✓ Clear','','✗ Escalate now')}
+    </div>
+    <div class="card">
+      <div class="card-lbl">BANT Filled %</div>
+      <div class="card-val">${bant}%</div>
+      ${pbar(bant||0,100,bant>=40?'var(--green)':bant>=20?'var(--amber)':'var(--blue)')}
+      <div class="card-sub">goal ≥ 40%</div>
+      ${badge(bant||0,40,20,'✓ On track','⚡ Growing','✗ Below target')}
+    </div>
+    <div class="card">
+      <div class="card-lbl">Next Step Scheduled %</div>
+      <div class="card-val">${nextStep}%</div>
+      ${pbar(nextStep||0,100,nextStep>=80?'var(--green)':nextStep>=50?'var(--amber)':'var(--blue)')}
+      <div class="card-sub">goal ≥ 80%</div>
+      ${badge(nextStep||0,80,50,'✓ On track','⚡ Close','✗ Below target')}
+    </div>
+  </div>
+
+  <!-- CONVERSION BY STAGE -->
+  <div class="sec-lbl">Conversion Rates by Stage (S1 onward)</div>
+  <div style="background:#fff;border:0.5px solid var(--border);border-radius:12px;overflow:hidden">
+    <table class="tbl">
+      <thead><tr>
+        <th>Stage</th>
+        <th class="c">Actual</th>
+        <th class="c">Target</th>
+        <th class="r">Δ vs Target</th>
+      </tr></thead>
+      <tbody>${convRows}
+        <tr style="background:var(--ebf)">
+          <td style="font-weight:700">Overall S1 → Won</td>
+          <td class="c" style="font-weight:700">${overallConv}</td>
+          <td class="c" style="color:var(--muted)">25%</td>
+          <td class="r">${overallDelta}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>`;
+}
+
+// ── MONTHLY TAB ────────────────────────────────────────────
+function buildMonthlyTab(d){
+  var mo=d.monthly||{};
+  var wl=d.weeklyLog||{};
+  var month=d.currentMonth||'Current Month';
+  var ds=d.dealSources||{};
+
+  // Find current month label for deal sources
+  var dsMonths=Object.keys(ds).filter(function(k){return ds[k].total_opps>0;});
+  var latestDS=dsMonths[dsMonths.length-1]||'';
+  var srcData=latestDS?ds[latestDS]:{};
+
+  // Metrics
+  var newCusts=n(mo.new_customers,0);
+  var totalCusts=n(mo.total_customers,0);
+  var totalARR=n(mo.total_arr,0);
+  var pctWon=pct(wl.forecast_conv_actual)||0;
+  // BANT/NextStep: use current week value, show 0 if empty
+  function pctVal(v) {
+    if (v === '' || v === null || v === undefined || v === '-') return 0;
+    var x = parseFloat(v);
+    if (isNaN(x)) return 0;
+    return x < 1 ? Math.round(x * 100) : Math.round(x);
+  }
+  var bantPct = pctVal(wl.bant_filled_pct);
+  var nsPct = pctVal(wl.next_step_pct);
+  var icpMonth = n(wl.icp_enriched_week, 0);
+  var icpQLog=n(wl.icp_enriched_q_cum,0);
+  var icpQRollup=n((d.quarterly&&d.quarterly['ICP Enriched (Q total)']||[])[0],0);
+  var icpQ=icpQRollup>icpQLog?icpQRollup:icpQLog;
+  var forecastAss=pct(wl.forecast_conv_assumed)||25;
+  var roadDone=n(wl.roadmap_done,0);
+  var roadTotal=n(wl.roadmap_total,10);
+  var roadPct=roadTotal>0?Math.round(roadDone/roadTotal*100):0;
+  var regs=n(wl.regressions,0);
+  var ltv=n(wl.lost_to_value,0);
+  var activeU=n(wl.active_users,0);
+  var provU=n(wl.provisioned_users,0);
+  var dauPct=provU>0?Math.round(activeU/provU*100):pct(wl.active_users_pct)||0;
+
+  // Coverage
+  var cov=d.coverage||{};
+  var covNeeded=n(cov.reachout_needed,67);
+  var covActual=n(cov.reachout_actual,0);
+  var covPct=Math.min(100,covNeeded>0?Math.round(covActual/covNeeded*100):0);
+
+  // Stage conversion monthly
+  var stageConvRows='';
+  var mStages=[
+    {key:'s1',lbl:'S1 Need Validation',tgt:55},
+    {key:'s2',lbl:'S2 Value Realization',tgt:60},
+    {key:'s3',lbl:'S3 Commercial Alignment',tgt:80},
+    {key:'s4',lbl:'S4 Contracting',tgt:95},
+  ];
+  mStages.forEach(function(s){
+    var stg=mo[s.key]||{};
+    var cv=pct(stg.conversion);
+    var cvStr=cv!==null?(cv*100).toFixed(1)+'%':'—';
+    if(typeof stg.conversion==='number')cvStr=(Math.round(stg.conversion*1000)/10)+'%';
+    var vs=stg.vs_target;
+    var vsNum=vs&&vs!==''&&vs!=='-'?parseFloat(vs):null;
+    var vsStr=vsNum!==null?(vsNum>=0?'+':'')+Math.round(vsNum*100)+'pp':'—';
+    var vsCls=vsNum===null?'delta-neu':vsNum>=0?'delta-pos':'delta-neg';
+    var entered=n(stg.entered,0);
+    var active=n(stg.active,0);
+    stageConvRows+='<tr>'
+      +'<td style="font-weight:700">'+s.lbl+'</td>'
+      +'<td class="c">'+entered+'</td>'
+      +'<td class="c">'+active+'</td>'
+      +'<td class="c" style="font-weight:700">'+cvStr+'</td>'
+      +'<td class="c">'+s.tgt+'%</td>'
+      +'<td class="r"><span class="'+vsCls+'">'+vsStr+'</span></td>'
+      +'</tr>';
+  });
+
+  // Source table
+  var srcNames=['Conference','Chris','Chris Dinner','SDR','Referral','Internal','Inbound','Outbound'];
+  var srcColors=['#1E033E','#4A1A8C','#7B4FD4','#D1B8FF','#059669','#D97706','#DC2626','#1E4FA3'];
+  var srcRows='';
+  var totalOpps=n(srcData.total_opps,0)||1;
+  srcNames.forEach(function(name,i){
+    var sd=srcData[name]||{opps:0,s1:0};
+    var o=n(sd.opps,0);
+    var s1=n(sd.s1,0);
+    var s1p=o>0?Math.round(s1/o*100):0;
+    srcRows+='<tr>'
+      +'<td><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+srcColors[i]+';margin-right:6px;vertical-align:middle"></span>'+name+'</td>'
+      +'<td class="c" style="font-weight:700">'+o+'</td>'
+      +'<td class="c">'+(o>0?Math.round(o/totalOpps*100)+'%':'—')+'</td>'
+      +'<td class="c">'+s1+'</td>'
+      +'<td class="c">'+(o>0?s1p+'%':'—')+'</td>'
+      +'</tr>';
+  });
+
+  return `<div>
+  <div class="period-hdr">
+    <div>
+      <div class="period-ttl">Monthly Summary</div>
+      <div class="period-sub">Month: ${month}</div>
+    </div>
+    <div class="period-pill">Q2 2026</div>
+  </div>
+
+  <!-- MONTHLY FOCUS -->
+  <div class="sec-lbl dark">Monthly Focus</div>
+  <div class="g3" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-lbl">New Customers Closed</div>
+      <div class="card-val teal">${newCusts}</div>
+      <div class="card-sub">signed contracts this month</div>
+    </div>
+    <div class="card">
+      <div class="card-lbl">% Won — Conversion Rate</div>
+      <div class="card-val">${pctWon}%</div>
+      <div class="card-sub">conversion to paid · goal ≥ 25%</div>
+      ${badge(pctWon,25,15,'✓ ≥25% goal','⚡ Growing','✗ Below goal')}
+    </div>
+    <div class="card">
+      <div class="card-lbl">ICP Enriched Q2 Total</div>
+      <div class="card-val">${icpQ}</div>
+      <div class="card-sub">goal: 2,000 this quarter</div>
+      ${pbar(icpQ,2000,'var(--teal)')}
+    </div>
+  </div>
+
+  <!-- PIPELINE COVERAGE -->
+  <div class="sec-lbl dark">Pipeline Coverage</div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="g2">
+      <div>
+        <div class="card-lbl">S(-2) Reachout — Actual vs Needed</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin:6px 0">
+          <span class="card-val">${covActual}</span>
+          <span style="font-size:16px;color:var(--muted)">/ ${covNeeded}</span>
+          <span style="font-size:11px;color:var(--muted)">monthly goal</span>
+        </div>
+        ${pbar(covActual,covNeeded,covPct>=100?'var(--teal)':covPct>=60?'var(--amber)':'var(--red)')}
+        <span style="font-size:11px;color:var(--muted)">${covPct}% of goal</span>
+        ${badge(covPct,100,60,'✓ On track','⚡ In progress','✗ Behind')}
+      </div>
+      <div>
+        <div class="card-lbl">S1 Discovery — Actual vs Needed</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin:6px 0">
+          <span class="card-val">${n(cov.s1_actual,0)}</span>
+          <span style="font-size:16px;color:var(--muted)">/ ${n(cov.s1_needed,4)}</span>
+          <span style="font-size:11px;color:var(--muted)">monthly goal</span>
+        </div>
+        ${pbar(n(cov.s1_actual,0),n(cov.s1_needed,4)||1,'var(--blue)')}
+        ${badge(n(cov.s1_actual,0)>=n(cov.s1_needed,4)?1:0,1,1,'✓ On track','','✗ Behind')}
+      </div>
+    </div>
+  </div>
+
+  <!-- PIPELINE HEALTH -->
+  <div class="sec-lbl dark">Pipeline Health</div>
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-lbl">BANT Filled %</div>
+      <div class="card-val">${bantPct}%</div>
+      ${pbar(bantPct||0,100,'var(--blue)')}
+      <div class="card-sub">goal ≥ 40%</div>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Next Step Scheduled %</div>
+      <div class="card-val">${nsPct}%</div>
+      ${pbar(nsPct||0,100,'var(--blue)')}
+      <div class="card-sub">goal ≥ 80%</div>
+    </div>
+  </div>
+
+  <!-- STAGE CONVERSION -->
+  <div class="sec-lbl dark">Conversion by Stage (Monthly, S1 onward)</div>
+  <div style="background:#fff;border:0.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px">
+    <table class="tbl">
+      <thead><tr>
+        <th>Stage</th><th class="c">Entered</th><th class="c">Active</th>
+        <th class="c">Actual%</th><th class="c">Target%</th><th class="r">Δ</th>
+      </tr></thead>
+      <tbody>${stageConvRows}</tbody>
+    </table>
+  </div>
+
+  <!-- REVOPS -->
+  <div class="sec-lbl dark">RevOps</div>
+  <div class="g3" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-lbl">ICP Enriched This Week</div>
+      <div class="card-val">${icpMonth}</div>
+      <div class="card-sub">most recently logged</div>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Forecast Conv Accuracy</div>
+      <div style="display:flex;align-items:center;gap:16px;margin-top:6px">
+        <div style="text-align:center;padding:8px 12px;background:var(--surf);border-radius:8px">
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Assumed</div>
+          <div style="font-size:20px;font-weight:700">${forecastAss}%</div>
+        </div>
+        <div style="text-align:center;padding:8px 12px;background:var(--surf);border-radius:8px">
+          <div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Actual</div>
+          <div style="font-size:20px;font-weight:700">${pctWon}%</div>
+        </div>
+        <div style="font-size:18px;font-weight:700;color:${pctWon-forecastAss>=0?'var(--green)':'var(--red)'}">
+          ${pctWon-forecastAss>=0?'+':''}${Math.round((pctWon-forecastAss)*10)/10}pp
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Opportunity Sources — ${latestDS}</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px">Top channels this month</div>
+      <table class="tbl">
+        <thead><tr><th>Source</th><th class="c">Opps</th><th class="c">→S1</th><th class="c">S1%</th></tr></thead>
+        <tbody>${srcRows}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PRODUCT -->
+  <div class="sec-lbl dark">Product</div>
+  <div class="g4">
+    <div class="card">
+      <div class="card-lbl">Roadmap</div>
+      <div class="card-val">${roadPct}%</div>
+      <div class="card-sub">${roadDone} / ${roadTotal} items</div>
+      ${pbar(roadPct,100,roadPct>=90?'var(--teal)':roadPct>=70?'var(--amber)':'var(--red)')}
+    </div>
+    <div class="card">
+      <div class="card-lbl">Regressions</div>
+      <div class="card-val" style="color:${regs===0?'var(--green)':'var(--red)'}">${regs}</div>
+      <div class="card-sub">goal: 0 per release</div>
+      ${badge(regs===0?1:0,1,1,'✓ Clean','','✗ Found')}
+    </div>
+    <div class="card">
+      <div class="card-lbl">Lost to Value Gap</div>
+      <div class="card-val" style="color:${ltv===0?'var(--green)':'var(--red)'}">${ltv}</div>
+      <div class="card-sub">deals lost on value · goal: 0</div>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Active Users %</div>
+      <div class="card-val">${dauPct}%</div>
+      <div class="card-sub">${activeU} active / ${provU} provisioned</div>
+      ${pbar(dauPct,100,'var(--blue)')}
+    </div>
+  </div>
+</div>`;
+}
+
+// ── QUARTERLY TAB ──────────────────────────────────────────
+function buildQuarterlyTab(d){
+  var q=d.quarterly||{};
+  var mo=d.monthly||{};
+
+  // Quarterly Rollup data (index 0 = Q2 2026)
+  var s2Added=n((q['S-2 Accounts Added']||[])[0],0);
+  var newQualOpps=n((q['New Qualified Opps (total)']||[])[0],0);
+  var s2Pct=Math.round(s2Added/200*100);
+  var qualPct=Math.round(newQualOpps/60*100);
+  var lostQual=n((q['Lost to Qualification (total)']||[])[0],0);
+  var icpQ=n((q['ICP Enriched (Q total)']||[])[0],0);
+  var regsQ=n((q['Regressions (total)']||[])[0],0);
+  var ltvQ=n((q['Lost to Value (total)']||[])[0],0);
+  var dauQ=pct((q['Active Users % (avg)']||[])[0])||0;
+  if(dauQ<1&&dauQ>0)dauQ=Math.round(dauQ*1000)/10;
+
+  // From Quarterly Summary sheet targets
+  // Q2 2026 customers target = 3 (from Quarterly Summary)
+  var custTarget=(d.quarterlyNewCustTarget&&d.quarterlyNewCustTarget>0)?d.quarterlyNewCustTarget:2;
+  var custActual=Math.max(0,n(mo.total_customers,0)-1); // subtract 1 initial customer that was pre-existing
+  var arrTarget=custTarget*48000;
+  var arrActual=n(mo.total_arr,0);
+
+  // Pipeline funnel (entered per stage Q2)
+  var pipelineStages=[
+    {key:'S(-2) Reachout',src:'s_neg2'},
+    {key:'S(-1) Connected',src:'s_neg1'},
+    {key:'S0 Pipeline Lead',src:'s0'},
+    {key:'S1 Discovery',src:'s1'},
+    {key:'S2 Value Realization',src:'s2'},
+    {key:'S3 Commercial Alignment',src:'s3'},
+    {key:'S4 Contracting',src:'s4'},
+  ];
+
+  // Source data Q2
+  var srcNames=['Conference','Chris','Chris Dinner','SDR','Referral','Internal','Inbound','Outbound'];
+  var srcQKeys=['Conference (opps)','Chris (opps)','Chris Dinner (opps)','SDR (opps)','Referral (opps)','Internal (opps)','Inbound (opps)','Outbound (opps)'];
+  var srcColors=['#1E033E','#4A1A8C','#7B4FD4','#D1B8FF','#059669','#D97706','#DC2626','#1E4FA3'];
+  var srcTotal=srcQKeys.reduce(function(a,k){return a+n((q[k]||[])[0],0);},0)||1;
+  var srcRows='';
+  srcNames.forEach(function(name,i){
+    var v=n((q[srcQKeys[i]]||[])[0],0);
+    srcRows+='<tr><td><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+srcColors[i]+';margin-right:6px;vertical-align:middle"></span>'+name+'</td>'
+      +'<td class="c" style="font-weight:700">'+v+'</td>'
+      +'<td class="c">'+(v>0?Math.round(v/srcTotal*100)+'%':'—')+'</td>'
+      +'</tr>';
+  });
+
+  // Quarterly pipeline entered rows
+  // Quarterly targets from assumptions (needed per deal × Q2 customer target)
+  var qCustTgt=(d.quarterlyNewCustTarget&&d.quarterlyNewCustTarget>0)?d.quarterlyNewCustTarget:2;
+  var stageTgts={
+    's(-2) reachout': Math.round(qCustTgt*66.5),
+    's(-1) connected': Math.round(qCustTgt*13.3),
+    's0 pipeline lead': Math.round(qCustTgt*6.6),
+    's1 discovery':    Math.round(qCustTgt*4),
+    's2 value realization': Math.round(qCustTgt*2.2),
+    's3 commercial alignment': Math.round(qCustTgt*1.3),
+    's4 contracting':  Math.round(qCustTgt*1.1),
+  };
+
+  var pipelineRows='';
+  var monthlyStageKeys={s_neg2:'s_neg2',s_neg1:'s_neg1',s0:'s0',s1:'s1',s2:'s2',s3:'s3',s4:'s4'};
+  pipelineStages.forEach(function(s){
+    var mStg=mo[s.src]||{};
+    var entered=n(mStg.entered,0);
+    var tgt=stageTgts[s.key.toLowerCase()]||0;
+    var delta=tgt>0?entered-tgt:null;
+    var deltaStr2=delta===null?'—':(delta>=0?'<span class="delta-pos">+'+'</span>':'<span class="delta-neg">');
+    var dStr=delta===null?'<span class="delta-neu">—</span>':(delta>=0?'<span class="delta-pos">+'+delta+'</span>':'<span class="delta-neg">'+delta+'</span>');
+    pipelineRows+='<tr><td>'+s.key+'</td><td class="c" style="font-weight:700">'+entered+'</td><td class="c" style="color:var(--muted)">'+(tgt||'—')+'</td><td class="r">'+dStr+'</td></tr>';
+  });
+
+  var custPct=Math.min(100,custTarget>0?Math.round(custActual/custTarget*100):0);
+
+  return `<div>
+  <div class="period-hdr">
+    <div>
+      <div class="period-ttl">Quarterly Summary</div>
+      <div class="period-sub">Q2 2026 (Apr – Jun 2026)</div>
+    </div>
+    <div class="period-pill">Q2 2026</div>
+  </div>
+
+  <!-- QUARTERLY FOCUS -->
+  <div class="sec-lbl dark">Quarterly Focus — Targets vs Actuals</div>
+  <div class="g4" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-lbl">New Customers</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin:4px 0">
+        <span class="card-val teal">${custActual}</span>
+        <span style="font-size:16px;color:var(--muted)">/ ${custTarget}</span>
+      </div>
+      ${pbar(custActual,custTarget,custActual>=custTarget?'var(--teal)':'var(--red)')}
+      <div class="card-sub">${custPct}% of Q2 goal</div>
+      ${badge(custPct,100,70,'✓ Target met','⚡ On track','✗ Behind')}
+    </div>
+    <div class="card">
+      <div class="card-lbl">Lost to Qualification</div>
+      <div class="card-val" style="color:${lostQual===0?'var(--green)':'var(--red)'}">${lostQual}</div>
+      <div class="card-sub">goal: 0 cases</div>
+      ${badge(lostQual===0?1:0,1,1,'✓ On track','','✗ Action needed')}
+    </div>
+    <div class="card">
+      <div class="card-lbl">S(-2) Accounts Added</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin:4px 0">
+        <span class="card-val">${s2Added}</span>
+        <span style="font-size:16px;color:var(--muted)">/ 200</span>
+      </div>
+      <div class="card-sub">${s2Pct}% of Q2 target (200)</div>
+      ${badge(s2Added,200,130,'✓ On track','⚡ Building','✗ Behind')}
+    </div>
+    <div class="card">
+      <div class="card-lbl">New Qualified Opps</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin:4px 0">
+        <span class="card-val">${newQualOpps}</span>
+        <span style="font-size:16px;color:var(--muted)">/ 60</span>
+      </div>
+      <div class="card-sub">${qualPct}% of Q2 target · lost to qual: ${lostQual}</div>
+      ${badge(newQualOpps,60,40,'✓ On track','⚡ Below target','✗ Behind')}
+    </div>
+  </div>
+
+  <!-- PIPELINE ENTERED -->
+  <div class="sec-lbl dark">Pipeline — Entered per Stage This Quarter</div>
+  <div style="background:#fff;border:0.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px">
+    <table class="tbl">
+      <thead><tr><th>Stage</th><th class="c">Entered (Q2)</th><th class="c">Target</th><th class="r">Variance</th></tr></thead>
+      <tbody>${pipelineRows}</tbody>
+    </table>
+  </div>
+
+  <!-- REVOPS + PRODUCT -->
+  <div class="sec-lbl dark">RevOps & Product</div>
+  <div class="g4" style="margin-bottom:14px">
+    <div class="card">
+      <div class="card-lbl">ICP Enriched (Q total)</div>
+      <div class="card-val">${icpQ}</div>
+      <div class="card-sub">goal: 2,000 this quarter</div>
+      ${pbar(icpQ,2000,'var(--teal)')}
+    </div>
+    <div class="card">
+      <div class="card-lbl">Regressions</div>
+      <div class="card-val" style="color:${regsQ===0?'var(--green)':'var(--red)'}">${regsQ}</div>
+      <div class="card-sub">total this quarter</div>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Lost to Value Gap</div>
+      <div class="card-val" style="color:${ltvQ===0?'var(--green)':'var(--red)'}">${ltvQ}</div>
+      <div class="card-sub">deals lost on product value</div>
+    </div>
+    <div class="card">
+      <div class="card-lbl">Active Users % (avg)</div>
+      <div class="card-val">${typeof dauQ==='number'&&dauQ<1?Math.round(dauQ*100):dauQ}%</div>
+      <div class="card-sub">quarterly average</div>
+    </div>
+  </div>
+
+  <!-- OPPORTUNITY SOURCES -->
+  <div class="sec-lbl dark">Opportunity Sources — Q2 2026</div>
+  <div style="background:#fff;border:0.5px solid var(--border);border-radius:12px;overflow:hidden">
+    <table class="tbl">
+      <thead><tr><th>Source</th><th class="c">Opps</th><th class="c">% of Total</th></tr></thead>
+      <tbody>${srcRows}</tbody>
+    </table>
+  </div>
+</div>`;
+}
+
+// ── HELPERS FOR OLD FUNNEL ─────────────────────────────────
+function E(id){return document.getElementById(id)}
+
+function funnelVis(vals){
+  var svg=E('sv-funnel-vis');if(!svg)return
+  var W=560,H=130,n=7
+  var stageVals=vals.slice(0,n)
+  var mx=stageVals[0]||1
+  var labels=['S-2','S-1','S0','S1','S2','S3','S4']
+  var faceColors=['#3B1278','#4A1A8C','#6B38B8','#8A5CD4','#A87EE8','#C0A2F4','#00BFA8']
+  var shadowColors=['#2A0A55','#380F6A','#541E92','#6E42B0','#8A62CC','#A086DC','#008A78']
+  var labelColors=['#7B50D4','#9068E0','#A882EA','#C0A4F2','#D4C0F8','#E8DCF8','#00DCC7']
+
+  var segW=Math.floor(W/n)
+  var maxHalf=H/2-22   // max half-height for largest stage
+  var minHalf=5
+  var midY=H/2+6       // centre, shifted down to leave label room above
+  var shadowOff=6      // 3D shadow offset (depth)
+  var html=''
+
+  // Build defs for gradients
+  stageVals.forEach(function(_,i){
+    var gid='gf'+i
+    html+='<defs>'
+    +'<linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1">'
+    +'<stop offset="0%" stop-color="rgba(255,255,255,0.35)"/>'
+    +'<stop offset="30%" stop-color="rgba(255,255,255,0.08)"/>'
+    +'<stop offset="100%" stop-color="rgba(0,0,0,0.28)"/>'
+    +'</linearGradient>'
+    +'</defs>'
+  })
+
+  stageVals.forEach(function(val,i){
+    var pct=Math.max(minHalf/maxHalf, val/mx)
+    var nextVal=i<n-1?stageVals[i+1]:0
+    var nextPct=i<n-1?Math.max(minHalf/maxHalf, nextVal/mx):(minHalf/maxHalf)*0.6
+
+    var lH=Math.round(pct*maxHalf)       // left half-height
+    var rH=Math.round(nextPct*maxHalf)   // right half-height (taper)
+
+    var x=i*segW
+    var w=segW
+
+    // 3D SHADOW (offset trapezoid behind/below)
+    var stl=midY-lH+shadowOff, sbl=midY+lH+shadowOff
+    var str=midY-rH+shadowOff, sbr=midY+rH+shadowOff
+    var shadowPts=[x+','+stl, (x+w)+','+str, (x+w)+','+sbr, x+','+sbl].join(' ')
+    html+='<polygon points="'+shadowPts+'" fill="'+shadowColors[i]+'" opacity="0.55"/>'
+
+    // FACE trapezoid
+    var tl=midY-lH, bl=midY+lH
+    var tr=midY-rH, br=midY+rH
+    var facePts=[x+','+tl, (x+w)+','+tr, (x+w)+','+br, x+','+bl].join(' ')
+    html+='<polygon points="'+facePts+'" fill="'+faceColors[i]+'"/>'
+
+    // GLOSS overlay
+    html+='<polygon points="'+facePts+'" fill="url(#gf'+i+')"/>'
+
+    // TOP EDGE (bright highlight strip — the "top face" of the 3D object)
+    // connects face top-left → face top-right → shadow top-right → shadow top-left
+    var topPts=[
+      x+','+tl,
+      (x+w)+','+tr,
+      (x+w)+','+str,
+      x+','+stl
+    ].join(' ')
+    html+='<polygon points="'+topPts+'" fill="rgba(255,255,255,0.22)"/>'
+
+    // RIGHT SIDE FACE (connects face right edge to shadow right edge)
+    if(i===n-1){
+      var sideR=[
+        (x+w)+','+tr,
+        (x+w)+','+br,
+        (x+w)+','+sbr,
+        (x+w)+','+str
+      ].join(' ')
+      html+='<polygon points="'+sideR+'" fill="rgba(0,0,0,0.3)"/>'
+    }
+
+    // Divider between segments (white line on face)
+    if(i<n-1){
+      html+='<line x1="'+(x+w)+'" y1="'+tr+'" x2="'+(x+w)+'" y2="'+br+'" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>'
+    }
+
+    // Stage label — above the segment
+    var cx=(x+w/2).toFixed(1)
+    html+='<text x="'+cx+'" y="'+(tl-6)+'" text-anchor="middle" font-size="9.5" font-family="Poppins,sans-serif" fill="'+labelColors[i]+'" font-weight="700">'+labels[i]+'</text>'
+
+    // Value inside if tall enough
+    var faceH=(lH+rH)  // average height * 2
+    if(faceH>=14){
+      var fs=faceH>44?13:faceH>24?11:9
+      html+='<text x="'+cx+'" y="'+(midY+fs/3)+'" text-anchor="middle" font-size="'+fs+'" font-family="Poppins,sans-serif" fill="rgba(255,255,255,0.95)" font-weight="800">'+val+'</text>'
+    } else {
+      html+='<text x="'+cx+'" y="'+(bl+shadowOff+11)+'" text-anchor="middle" font-size="10" font-family="Poppins,sans-serif" fill="'+labelColors[i]+'" font-weight="800">'+val+'</text>'
+    }
+  })
+
+  svg.setAttribute('viewBox','0 0 '+W+' '+H)
+  svg.innerHTML=html
+}
+
+// ── FETCH & RENDER ─────────────────────────────────────────
+window.addEventListener('DOMContentLoaded',function(){
+  fetch(API_URL,{redirect:'follow',mode:'cors'})
+    .then(function(r){
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      document.getElementById('lmsg').textContent='Building dashboard…';
+      return r.json();
+    })
+    .then(function(data){
+      // Timestamp
+      if(data.generated){
+        var dt=new Date(data.generated);
+        var pad=function(x){return x<10?'0'+x:x;};
+        document.getElementById('ts-val').textContent=pad(dt.getDate())+'/'+pad(dt.getMonth()+1)+'/'+dt.getFullYear()+' '+pad(dt.getHours())+':'+pad(dt.getMinutes());
+      }
+      document.getElementById('tab-weekly').innerHTML=buildWeeklyTab(data);
+      document.getElementById('tab-monthly').innerHTML=buildMonthlyTab(data);
+      document.getElementById('tab-quarterly').innerHTML=buildQuarterlyTab(data);
+      // Draw 3D funnel with active stage values
+      var fv=[
+        n(data.stages&&data.stages.s_neg2&&data.stages.s_neg2.active,0),
+        n(data.stages&&data.stages.s_neg1&&data.stages.s_neg1.active,0),
+        n(data.stages&&data.stages.s0&&data.stages.s0.active,0),
+        n(data.stages&&data.stages.s1&&data.stages.s1.active,0),
+        n(data.stages&&data.stages.s2&&data.stages.s2.active,0),
+        n(data.stages&&data.stages.s3&&data.stages.s3.active,0),
+        n(data.stages&&data.stages.s4&&data.stages.s4.active,0)
+      ];
+      // Draw 3D funnel after DOM settles
+      (function(vals){setTimeout(function(){funnelVis(vals);},50);})(fv);
+      // Sparkline tooltip
+      setTimeout(function(){
+        var wrap=document.getElementById('spark-wrap');
+        var svgEl=wrap?wrap.querySelector('svg'):null;
+        var tip=document.getElementById('spark-tooltip');
+        if(!svgEl||!tip)return;
+        var sd=[];
+        try{var raw=svgEl.getAttribute('data-spark')||'[]';sd=JSON.parse(raw);}catch(e){console.log('tooltip parse err',e);}
+        svgEl.addEventListener('mousemove',function(e){
+          if(!sd.length)return;
+          var rect=svgEl.getBoundingClientRect();
+          var x=e.clientX-rect.left;
+          var frac=(x-10)/180;
+          var idx=Math.max(0,Math.min(sd.length-1,Math.round(frac*(sd.length-1))));
+          var pt=sd[idx]||{};
+          tip.style.display='block';
+          tip.style.left=((idx/(sd.length-1))*180+10)+'px';
+          tip.textContent=(pt.w||'?')+': '+(pt.v||0)+' opps';
+        });
+        svgEl.addEventListener('mouseleave',function(){tip.style.display='none';});
+      },150);
+      document.getElementById('loader').style.display='none';
+      document.getElementById('shell').style.display='flex';
+    })
+    .catch(function(err){
+      document.getElementById('lmsg').textContent='⚠ Could not load data: '+err.message;
+    });
+});
+</script>
+</body>
+</html>
