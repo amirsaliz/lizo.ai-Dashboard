@@ -153,6 +153,22 @@ function buildWeeklyTab(d){
   var wl=d.weeklyLog||{};
   var week=d.currentWeek||'Current Week';
 
+  // Helper: get last non-empty value from series
+  function lastVal(v, series) {
+    var x = parseFloat(v);
+    if (!isNaN(x) && v !== '' && v !== '-') return x;
+    if (series) {
+      for (var i = series.length - 1; i >= 0; i--) {
+        var s = series[i];
+        if (s !== '' && s !== null && s !== '-') {
+          var y = parseFloat(s);
+          if (!isNaN(y)) return y;
+        }
+      }
+    }
+    return 0;
+  }
+
   // Stage data
   var stages=[
     {key:'s_neg2',lbl:'S(-2) Reachout',pre:true,tgt_conv:null},
@@ -235,16 +251,30 @@ function buildWeeklyTab(d){
   });
 
   // Spark SVG for qual opps
-  var sparkData=(wl.new_qual_opps_week_series||[]).slice(-12).map(function(v){return n(v,0);});
+  var sparkData=(wl.new_qual_opps_week_series||[]).slice(-12).map(function(v){var x=parseFloat(v);return isNaN(x)?0:x;});
   while(sparkData.length<12)sparkData.unshift(0);
   var mx=Math.max.apply(null,sparkData)||1;
-  var sparkPts=sparkData.map(function(v,i){return (i/(sparkData.length-1)*200).toFixed(1)+','+(4+(32-4)*(1-v/mx)).toFixed(1);}).join(' ');
-  var tgtY=(4+(32-4)*(1-20/mx)).toFixed(1);
-  var sparkSVG='<svg width="100%" height="36" viewBox="0 0 200 36" preserveAspectRatio="none">'
-    +'<polygon points="0,32 '+sparkPts+' 200,32" fill="rgba(105,159,255,0.1)"/>'
-    +'<polyline points="'+sparkPts+'" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round"/>'
-    +'<line x1="0" y1="'+tgtY+'" x2="200" y2="'+tgtY+'" stroke="var(--red)" stroke-width="1.5" stroke-dasharray="4,3"/>'
-    +'</svg>';
+  var sparkPts=sparkData.map(function(v,i){
+    var x=sparkData.length>1?(i/(sparkData.length-1)*180+10).toFixed(1):'100';
+    var y=(4+(30-4)*(1-v/mx)).toFixed(1);
+    return x+','+y;
+  }).join(' ');
+  var tgtY=mx>0?(4+(30-4)*(1-20/mx)).toFixed(1):'25';
+  var dotPts=sparkData.map(function(v,i){
+    var x=sparkData.length>1?(i/(sparkData.length-1)*180+10).toFixed(1):'100';
+    var y=(4+(30-4)*(1-v/mx)).toFixed(1);
+    return '<circle cx="'+x+'" cy="'+y+'" r="2.5" fill="var(--blue)"/>';
+  }).join('');
+  var sparkSVG='<svg width="100%" height="40" viewBox="0 0 200 40" xmlns="http://www.w3.org/2000/svg">'
+    +'<polygon points="10,34 '+sparkPts+' 190,34" fill="rgba(105,159,255,0.08)"/>'
+    +'<polyline points="'+sparkPts+'" fill="none" stroke="#699FFF" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'
+    +dotPts
+    +'<line x1="10" y1="'+tgtY+'" x2="190" y2="'+tgtY+'" stroke="#DC2626" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>'
+    +'<text x="192" y="'+(parseFloat(tgtY)+3)+'" font-size="7" fill="#DC2626" font-family="Poppins,sans-serif">tgt</text>'
+    +'</svg>'
+    +'<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);margin-top:2px">'
+    +'<span>12 weeks ago</span><span style="color:#699FFF">— actual</span><span style="color:#DC2626">— target (20/wk)</span><span>now</span>'
+    +'</div>';
 
   // Overall S1→Won: sum all entered S1 series vs all won (approximate from stage active)
   var s1Series=(st.s1&&st.s1.entered_series)||[];
@@ -374,9 +404,24 @@ function buildMonthlyTab(d){
   var totalCusts=n(mo.total_customers,0);
   var totalARR=n(mo.total_arr,0);
   var pctWon=pct(wl.forecast_conv_actual)||0;
-  var bantPct=pct(wl.bant_filled_pct)||0;
-  var nsPct=pct(wl.next_step_pct)||0;
-  var icpMonth=n(wl.icp_enriched_week,0);
+  // Use last non-empty value from series for bant/nextstep (current week may be blank)
+  function lastFilled(series) {
+    if (!series) return null;
+    for (var i = series.length - 1; i >= 0; i--) {
+      var v = series[i];
+      if (v !== '' && v !== null && v !== undefined && v !== '-') {
+        var x = parseFloat(v);
+        if (!isNaN(x)) return x;
+      }
+    }
+    return null;
+  }
+  var bantRaw = lastFilled(wl.bant_filled_pct_series);
+  var bantPct = bantRaw !== null ? (bantRaw < 1 ? Math.round(bantRaw * 100) : Math.round(bantRaw)) : 0;
+  var nsRaw = lastFilled(wl.next_step_pct_series);
+  var nsPct = nsRaw !== null ? (nsRaw < 1 ? Math.round(nsRaw * 100) : Math.round(nsRaw)) : 0;
+  var icpMonthRaw = lastFilled(wl.icp_enriched_week_series);
+  var icpMonth = icpMonthRaw !== null ? icpMonthRaw : 0;
   var icpQLog=n(wl.icp_enriched_q_cum,0);
   var icpQRollup=n((d.quarterly&&d.quarterly['ICP Enriched (Q total)']||[])[0],0);
   var icpQ=icpQRollup>icpQLog?icpQRollup:icpQLog;
@@ -693,12 +738,10 @@ function buildQuarterlyTab(d){
       ${badge(custPct,100,70,'✓ Target met','⚡ On track','✗ Behind')}
     </div>
     <div class="card">
-      <div class="card-lbl">Total ARR</div>
-      <div style="display:flex;align-items:baseline;gap:6px;margin:4px 0">
-        <span class="card-val">${money(arrActual)}</span>
-        <span style="font-size:13px;color:var(--muted)">/ ${money(arrTarget)}</span>
-      </div>
-      <div class="card-sub">target: ${money(arrTarget)}</div>
+      <div class="card-lbl">Lost to Qualification</div>
+      <div class="card-val" style="color:${lostQual===0?'var(--green)':'var(--red)'}">${lostQual}</div>
+      <div class="card-sub">goal: 0 cases</div>
+      ${badge(lostQual===0?1:0,1,1,'✓ On track','','✗ Action needed')}
     </div>
     <div class="card">
       <div class="card-lbl">S(-2) Accounts Added</div>
